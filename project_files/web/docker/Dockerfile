@@ -50,10 +50,25 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
 FROM native AS web
 ARG EMSDK_VERSION=4.0.10
 ENV EMSDK=/opt/emsdk
-RUN git clone --depth 1 https://github.com/emscripten-core/emsdk.git ${EMSDK} \
+RUN git clone --depth 1 --branch ${EMSDK_VERSION} https://github.com/emscripten-core/emsdk.git ${EMSDK} \
     && cd ${EMSDK} \
     && ./emsdk install ${EMSDK_VERSION} \
     && ./emsdk activate ${EMSDK_VERSION} \
     && chmod -R a+rwX ${EMSDK}
-ENV PATH=${EMSDK}:${EMSDK}/upstream/emscripten:$PATH
+ENV PATH=${EMSDK}:${EMSDK}/upstream/emscripten:${EMSDK}/node/22.16.0_64bit/bin:$PATH
 RUN rustup target add wasm32-unknown-emscripten
+
+# Libraries without an Emscripten port, built once and installed to /opt/wasm.
+# PhysFS >= 3.0 is required (misc/libphysfs is 2.1).
+ARG PHYSFS_VERSION=3.2.0
+ARG PHYSFS_SHA256=1991500eaeb8d5325e3a8361847ff3bf8e03ec89252b7915e1f25b3f8ab5d560
+RUN mkdir -p /tmp/physfs && cd /tmp/physfs \
+    && curl -sSL -o physfs.tar.gz https://github.com/icculus/physfs/archive/refs/tags/release-${PHYSFS_VERSION}.tar.gz \
+    && echo "${PHYSFS_SHA256}  physfs.tar.gz" | sha256sum -c - \
+    && tar xzf physfs.tar.gz \
+    && emcmake cmake -S physfs-release-${PHYSFS_VERSION} -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/wasm \
+        -DPHYSFS_BUILD_SHARED=OFF -DPHYSFS_BUILD_TEST=OFF -DPHYSFS_BUILD_DOCS=OFF \
+    && cmake --build build && cmake --install build \
+    && cd / && rm -rf /tmp/physfs \
+    && chmod -R a+rwX ${EMSDK}/upstream/emscripten/cache

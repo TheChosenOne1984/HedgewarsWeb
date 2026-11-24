@@ -4,7 +4,9 @@ file(GLOB lua_src *.c *.h)
 
 if(WIN32)
     add_definitions(-DLUA_BUILD_AS_DLL)
-else(WIN32)
+elseif(BUILD_ENGINE_JS)
+    add_definitions(-DLUA_USE_POSIX)
+else()
     add_definitions(-DLUA_USE_LINUX)
     add_definitions(-fvisibility=default) #TODO: fixme
 endif(WIN32)
@@ -21,8 +23,4 @@ install(TARGETS lua RUNTIME DESTINATION ${target_binary_install_dir}
 set(LUA_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Lua include dir" FORCE)
 set(LUA_LIBRARY lua CACHE STRING "Lua library" FORCE)
 
-#emscripten does not expose headers but has an internal binary copy
-if(BUILD_ENGINE_JS)
-    set(LUA_LIBRARY "lua_emscripten_internal" CACHE STRING "Lua library" FORCE)
-endif()
 

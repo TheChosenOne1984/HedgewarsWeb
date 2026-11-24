@@ -7,6 +7,6 @@ root="$(cd "$(dirname "$0")/../../.." && pwd)"
 mkdir -p "$root/.cache/cargo"
 exec docker run --rm -i \
     -u "$(id -u):$(id -g)" \
-    -e HOME=/tmp -e CARGO_HOME=/src/.cache/cargo \
+    -e HOME=/tmp -e CARGO_HOME=/src/.cache/cargo -e EM_CACHE=/src/.cache/emcache \
     -v "$root:/src" -w /src \
     "hw-web-$target" sh -c "$*"
