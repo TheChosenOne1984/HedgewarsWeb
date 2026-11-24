@@ -44,7 +44,24 @@ unit = do
     int <- interface
     impl <- implementation
     comments
-    return $ Unit name int impl Nothing Nothing
+    ini <- optionMaybe initialization
+    fin <- optionMaybe finalization
+    string' "end."
+    comments
+    return $ Unit name int impl ini fin
+    where
+    keyword k = try $ string' k >> notFollowedBy (alphaNum <|> char '_')
+    sectionEnd = lookAhead $ choice [keyword "finalization", keyword "end"]
+    initialization = do
+        choice [keyword "initialization", keyword "begin"]
+        comments
+        p <- manyTill phrase sectionEnd
+        return $ Initialize p
+    finalization = do
+        keyword "finalization"
+        comments
+        p <- manyTill phrase sectionEnd
+        return $ Finalize p
 
 
 reference :: Parsec String u Reference
@@ -389,7 +406,6 @@ implementation = do
     u <- uses
     comments
     tv <- typeVarDeclaration True
-    string' "end."
     comments
     return $ Implementation u (TypesAndVars tv)
 

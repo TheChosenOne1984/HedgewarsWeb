@@ -100,7 +100,7 @@ docToLower = text . map toLower . render
 pas2C :: String -> String -> String -> String -> [String] -> IO ()
 pas2C fn inputPath outputPath alternateInputPath symbols = do
     s <- flip execStateT initState $ f fn
-    renderCFiles s outputPath
+    renderCFiles s outputPath fn
     where
     printLn = liftIO . hPutStrLn stdout
     print' = liftIO . hPutStr stdout
@@ -131,13 +131,14 @@ pas2C fn inputPath outputPath alternateInputPath symbols = do
                             mapM_ f (usesFiles a)
 
 
-renderCFiles :: Map.Map String PascalUnit -> String -> IO ()
-renderCFiles units outputPath = do
+renderCFiles :: Map.Map String PascalUnit -> String -> String -> IO ()
+renderCFiles units outputPath mainModule = do
     let u = Map.toList units
     let nss = Map.map (toNamespace nss) units
     --hPutStrLn stderr $ "Units: " ++ (show . Map.keys . Map.filter (not . Map.null) $ nss)
     --writeFile "pas2c.log" $ unlines . map (\t -> show (fst t) ++ "\n" ++ (unlines . map ((:) '\t' . show) . snd $ t)) . Map.toList $ nss
-    mapM_ (toCFiles outputPath nss) u
+    let order = unitInitOrder units mainModule
+    mapM_ (toCFiles outputPath nss mainModule order) u
     where
     toNamespace :: Map.Map String Records -> PascalUnit -> Records
     toNamespace nss (System tvs) =
@@ -181,22 +182,25 @@ withRecordNamespace prefix recs = withState' f
         un [a] b = a : b
         un _ _ = error "withRecordNamespace un: pattern not matched"
 
-toCFiles :: String -> Map.Map String Records -> (String, PascalUnit) -> IO ()
-toCFiles _ _ (_, System _) = return ()
-toCFiles _ _ (_, Redo _) = return ()
-toCFiles outputPath ns pu@(fileName, _) = do
+toCFiles :: String -> Map.Map String Records -> String -> [(String, Bool, Bool)] -> (String, PascalUnit) -> IO ()
+toCFiles _ _ _ _ (_, System _) = return ()
+toCFiles _ _ _ _ (_, Redo _) = return ()
+toCFiles outputPath ns mainModule initOrder pu@(fileName, _) = do
     hPutStrLn stdout $ "Rendering '" ++ fileName ++ "'..."
     --let (fn, p) = pu in writeFile (outputPath ++ fn ++ ".dump") $ show p
     toCFiles' pu
     where
-    toCFiles' (fn, p@(Program {})) = writeFile (outputPath ++ fn ++ ".c") $ "#include \"fpcrtl.h\"\n" ++ (render2C initialState . pascal2C) p
-    toCFiles' (fn, (Unit unitId@(Identifier i _) interface implementation _ _)) = do
+    isMain = fileName == mainModule
+    toCFiles' (fn, p@(Program {})) = writeFile (outputPath ++ fn ++ ".c") $ "#include \"fpcrtl.h\"\n" ++ render (unitInitRunner initOrder False) ++ "\n" ++ (render2C initialState . pascal2C' (not $ null initOrder)) p
+    toCFiles' (fn, (Unit unitId@(Identifier i _) interface implementation ini fin)) = do
         let (a, s) = runState (id2C IOInsert (setBaseType BTUnit unitId) >> interface2C interface True) initialState{currentUnit = map toLower i ++ "_"}
             (a', _) = runState (id2C IOInsert (setBaseType BTUnit unitId) >> interface2C interface False) initialState{currentUnit = map toLower i ++ "_"}
             enumDecl = (renderEnum2Strs (enums s) False)
             enumImpl = (renderEnum2Strs (enums s) True)
-        writeFile (outputPath ++ fn ++ ".h") $ "#pragma once\n\n#include \"pas2c.h\"\n\n" ++ (render (a $+$ text "")) ++ "\n" ++ enumDecl
-        writeFile (outputPath ++ fn ++ ".c") $ "#include \"fpcrtl.h\"\n\n#include \"" ++ fn ++ ".h\"\n" ++ render (a' $+$ text "") ++ (render2C s . implementation2C) implementation ++ "\n" ++ enumImpl
+            sectionDecls = vcat $ [unitSectionDecl i "initialization" | isJust ini] ++ [unitSectionDecl i "finalization" | isJust fin]
+            runner = if isMain then render (unitInitRunner initOrder True) ++ "\n" else ""
+        writeFile (outputPath ++ fn ++ ".h") $ "#pragma once\n\n#include \"pas2c.h\"\n\n" ++ (render (a $+$ sectionDecls $+$ text "")) ++ "\n" ++ enumDecl
+        writeFile (outputPath ++ fn ++ ".c") $ "#include \"fpcrtl.h\"\n\n#include \"" ++ fn ++ ".h\"\n" ++ render (a' $+$ text "") ++ (render2C s . implementationWithSections2C implementation ini) fin ++ "\n" ++ enumImpl ++ runner
     toCFiles' _ = undefined -- just pleasing compiler to not warn us
     initialState = emptyState ns
 
@@ -227,6 +231,53 @@ renderEnum2Strs enums' implement =
             $+$
             text "}"
 
+-- | Units having an initialization and/or finalization section, in the order
+-- in which FPC runs their initialization: depth-first along the uses clauses
+-- (interface uses before implementation uses), a unit after all units it uses.
+-- Each entry is (unit name, has initialization, has finalization).
+unitInitOrder :: Map.Map String PascalUnit -> String -> [(String, Bool, Bool)]
+unitInitOrder units mainModule = mapMaybe sections . reverse . snd $ visit (Set.empty, []) mainModule
+    where
+    visit acc@(seen, out) name
+        | Set.member name seen = acc
+        | otherwise =
+            let deps = maybe [] usesFiles (Map.lookup name units)
+                (seen', out') = foldl visit (Set.insert name seen, out) deps
+            in (seen', name : out')
+    sections name = case Map.lookup name units of
+        Just (Unit (Identifier i _) _ _ ini fin) | isJust ini || isJust fin -> Just (map toLower i, isJust ini, isJust fin)
+        _ -> Nothing
+
+unitSectionName :: String -> String -> String
+unitSectionName unitName section = map toLower unitName ++ "_" ++ section
+
+unitSectionDecl :: String -> String -> Doc
+unitSectionDecl unitName section = text "void" <+> text (unitSectionName unitName section) <> parens (text "void") <> semi
+
+-- | C code running all unit initialization sections in FPC order and
+-- registering the finalization sections to run in reverse order at exit.
+-- For a program it is called first thing in main(); for a library (the main
+-- module is a unit) it runs as a constructor when the library is loaded,
+-- matching FPC semantics.
+unitInitRunner :: [(String, Bool, Bool)] -> Bool -> Doc
+unitInitRunner [] _ = empty
+unitInitRunner order isLibrary =
+    vcat (map (\(u, _, _) -> unitSectionDecl u "initialization") inits)
+    $+$ vcat (map (\(u, _, _) -> unitSectionDecl u "finalization") finis)
+    $+$ (if null finis then empty else
+        text "static void pas2c_finalize_units(void)"
+        $+$ text "{"
+        $+$ nest 4 (vcat [text (unitSectionName u "finalization") <> text "();" | (u, _, _) <- reverse finis])
+        $+$ text "}")
+    $+$ text (if isLibrary then "__attribute__((constructor)) static void pas2c_initialize_units(void)" else "void pas2c_initialize_units(void)")
+    $+$ text "{"
+    $+$ nest 4 (vcat [text (unitSectionName u "initialization") <> text "();" | (u, _, _) <- inits]
+        $+$ (if null finis then empty else text "atexit(pas2c_finalize_units);"))
+    $+$ text "}"
+    where
+    inits = filter (\(_, i, _) -> i) order
+    finis = filter (\(_, _, f) -> f) order
+
 usesFiles :: PascalUnit -> [String]
 usesFiles (Program _ (Implementation uses _) _) = ["pas2cSystem", "pas2cRedo"] ++ uses2List uses
 usesFiles (Unit _ (Interface uses1 _) (Implementation uses2 _) _ _) = ["pas2cSystem", "pas2cRedo"] ++ uses2List uses1 ++ uses2List uses2
@@ -234,20 +285,30 @@ usesFiles (System {}) = []
 usesFiles (Redo {}) = []
 
 pascal2C :: PascalUnit -> State RenderState Doc
-pascal2C (Unit _ interface implementation _ _) =
+pascal2C p = pascal2C' False p
+
+-- the bool indicates whether main() has to run the unit initialization sections first
+pascal2C' :: Bool -> PascalUnit -> State RenderState Doc
+pascal2C' _ (Unit _ interface implementation _ _) =
     liftM2 ($+$) (interface2C interface True) (implementation2C implementation)
 
-pascal2C (Program _ implementation mainFunction) = do
+pascal2C' runInits (Program _ implementation mainFunction) = do
     impl <- implementation2C implementation
+    initCall <- if runInits
+        then do
+            let initId = Identifier "pas2c_initialize_units" (BTFunction False True [] BTVoid)
+            void $ id2C IOInsert initId
+            return [ProcCall (SimpleReference initId) []]
+        else return []
     main <- liftM head $ tvar2C True False True True False
         (FunctionDeclaration (Identifier "main" (BTInt True)) False False False (SimpleType $ Identifier "int" (BTInt True)) 
             [VarDeclaration False False ([Identifier "argc" (BTInt True)], SimpleType (Identifier "Integer" (BTInt True))) Nothing
             , VarDeclaration False False ([Identifier "argv" BTUnknown], SimpleType (Identifier "PPChar" BTUnknown)) Nothing] 
-        (Just (TypesAndVars [], Phrases [mainResultInit, mainFunction])))
+        (Just (TypesAndVars [], Phrases $ mainResultInit : initCall ++ [mainFunction])))
 
     return $ impl $+$ main
 
-pascal2C _ = error "pascal2C: pattern not matched"
+pascal2C' _ _ = error "pascal2C: pattern not matched"
 
 -- the second bool indicates whether do normal interface translation or generate variable declarations
 -- that will be inserted into implementation files
@@ -269,6 +330,18 @@ implementation2C (Implementation uses tvars) = do
     tv <- typesAndVars2C True False True True tvars
     r <- renderStringConsts
     return (u $+$ r $+$ tv)
+
+-- | Implementation plus the unit's initialization and finalization sections,
+-- each rendered as a parameterless procedure <unit>_initialization/_finalization.
+implementationWithSections2C :: Implementation -> Maybe Initialize -> Maybe Finalize -> State RenderState Doc
+implementationWithSections2C implementation ini fin = do
+    impl <- implementation2C implementation
+    i <- maybe (return empty) (\(Initialize p) -> section "initialization" p) ini
+    f <- maybe (return empty) (\(Finalize p) -> section "finalization" p) fin
+    return $ impl $+$ i $+$ f
+    where
+    section name p = liftM vcat $ fun2C True name
+        (FunctionDeclaration (Identifier name BTUnknown) False False False VoidType [] (Just (TypesAndVars [], Phrases p)))
 
 checkDuplicateFunDecls :: [TypeVarDeclaration] -> State RenderState ()
 checkDuplicateFunDecls tvs =

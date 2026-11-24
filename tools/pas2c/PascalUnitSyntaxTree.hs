@@ -37,9 +37,9 @@ data Range = Range Identifier
            | RangeFromTo InitExpression InitExpression
            | RangeInfinite
     deriving (Show, Read, Eq)
-data Initialize = Initialize String
+data Initialize = Initialize [Phrase]
     deriving (Show, Read, Eq)
-data Finalize = Finalize String
+data Finalize = Finalize [Phrase]
     deriving (Show, Read, Eq)
 data Uses = Uses [Identifier]
     deriving (Show, Read, Eq)
