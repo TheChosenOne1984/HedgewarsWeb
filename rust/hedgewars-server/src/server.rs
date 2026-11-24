@@ -6,3 +6,5 @@ mod haskell;
 pub mod io;
 pub mod network;
 pub mod replaystorage;
+#[cfg(feature = "ws-connections")]
+pub mod websocket;

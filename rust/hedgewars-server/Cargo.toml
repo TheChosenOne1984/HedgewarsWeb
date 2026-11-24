@@ -7,6 +7,7 @@ authors = [ "Andrey Korotaev <a.korotaev@hedgewars.org>" ]
 [features]
 tls-connections = ["tokio-native-tls"]
 official-server = ["mysql_async", "sha1", "tls-connections"]
+ws-connections = ["tokio-tungstenite", "futures-util"]
 default = []
 
 [dependencies]
@@ -29,8 +30,12 @@ sha1 = { version = "0.10.0", optional = true }
 slab = "0.4"
 tokio = { version = "1.28", features = ["full"]}
 tokio-native-tls = { version = "0.3", optional = true }
+tokio-tungstenite = { version = "0.24", optional = true }
+futures-util = { version = "0.3", optional = true, default-features = false, features = ["sink", "std"] }
 
 hedgewars-network-protocol = { path = "../hedgewars-network-protocol" }
 
 [dev-dependencies]
 proptest = "1.0"
+tokio-tungstenite = "0.24"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
