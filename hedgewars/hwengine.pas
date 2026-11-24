@@ -40,6 +40,7 @@ uses {$IFDEF IPHONEOS}cmem, {$ENDIF} SDLh, uMisc, uConsole, uGame, uConsts, uLan
      {$IFDEF ANDROID}, GLUnit{$ENDIF}
      {$IFDEF UNIX}, clocale{$ENDIF}
      {$IFDEF WINDOWS}, dynlibs{$ENDIF}
+     {$IFDEF WEBGL}, uWeb{$ENDIF}
      ;
 
 {$IFDEF HWLIBRARY}
@@ -171,18 +172,25 @@ begin
 end;
 
 ///////////////////////////////////////////////////////////////////////////////
-procedure MainLoop;
-var event: TSDL_Event;
-    PrevTime, CurrTime: LongWord;
+// main loop state, kept between iterations
+var PrevTime: LongWord;
     isTerminated: boolean;
     previousGameState: TGameState;
-    wheelEvent: boolean;
+
+procedure MainLoopInit;
 begin
     previousGameState:= gsStart;
     isTerminated:= false;
     PrevTime:= SDL_GetTicks;
-    while (not isTerminated) and allOK do
-    begin
+end;
+
+// One iteration of the main loop: handle events, advance the game.
+// Desktop runs it in a loop (MainLoop), the browser once per frame.
+procedure MainLoopIteration;
+var event: TSDL_Event;
+    CurrTime: LongWord;
+    wheelEvent: boolean;
+begin
         wheelEvent:= false;
         SDL_PumpEvents();
 
@@ -327,11 +335,51 @@ game to freeze if one online player minimizes Hedgewars. *)
             isTerminated:= isTerminated or DoTimer(CurrTime - PrevTime);
             PrevTime:= CurrTime;
         end
-        else SDL_Delay(1);
+{$IFNDEF WEBGL}
+        else SDL_Delay(1)
+{$ENDIF};
         IPCCheckSock();
-
-    end;
 end;
+
+procedure MainLoop;
+begin
+    MainLoopInit;
+    while (not isTerminated) and allOK do
+        MainLoopIteration;
+end;
+
+{$IFDEF WEBGL}
+var isWebMainLoopRunning: boolean;
+
+// called by the browser once per animation frame
+procedure WebMainLoopStep; cdecl;
+begin
+    if (not isTerminated) and allOK then
+        MainLoopIteration;
+    if (not isTerminated) and allOK then
+        exit;
+
+    hw_web_stop_main_loop;
+    isWebMainLoopRunning:= false;
+    freeEverything(true);
+    hw_web_engine_exit(HaltNoError);
+end;
+
+// The browser cannot run a blocking loop on its main thread, so it calls
+// WebMainLoopStep once per frame instead. Headless runs (stats only, Lua
+// tests) keep the blocking loop: they draw nothing and are used by tests.
+procedure WebMainLoop;
+begin
+    if cOnlyStats or cTestLua then
+        MainLoop
+    else
+        begin
+        MainLoopInit;
+        isWebMainLoopRunning:= true;
+        hw_web_start_main_loop(@WebMainLoopStep);
+        end;
+end;
+{$ENDIF}
 
 {$IFDEF USE_VIDEO_RECORDING}
 procedure RecorderMainLoop;
@@ -476,13 +524,22 @@ begin
     end;
 {$ENDIF}
 
+{$IFDEF WEBGL}
+    WebMainLoop;
+{$ELSE}
     MainLoop;
+{$ENDIF}
 end;
 
 procedure Game;
 begin
     initEverything(true);
     GameRoutine;
+{$IFDEF WEBGL}
+    // WebMainLoopStep frees everything when the game ends
+    if isWebMainLoopRunning then
+        exit;
+{$ENDIF}
     // clean up all the memory allocated
     freeEverything(true);
 end;
