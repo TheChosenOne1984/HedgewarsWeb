@@ -32,7 +32,7 @@ implementation
 uses uConsts, SDLh, uAIMisc, uAIAmmoTests, uAIActions,
     uAmmos, uTypes,
     uVariables, uCommands, uUtils, uDebug, uAILandMarks,
-    uGearsUtils, uAI2;
+    uGearsUtils, uAI2 {$IFDEF WEBGL}, uWeb{$ENDIF};
 
 var BestActions: TActions;
     CanUseAmmo: array [TAmmoType] of boolean;
@@ -45,8 +45,19 @@ begin
     AddFileLog('FreeActionsList called');
 
     StopThinking:= true;
+{$IFDEF WEBGL}
+    // There is no thread to wait for: abandon an unfinished think job and
+    // clear the flag it would have cleared, while the gear is still valid.
+    if hw_ai_is_running <> 0 then
+        begin
+        hw_ai_cancel;
+        if ThinkingHH <> nil then
+            ThinkingHH^.State:= ThinkingHH^.State and (not gstHHThinking);
+        end;
+{$ELSE}
     SDL_SemWait(ThreadSem);
     SDL_SemPost(ThreadSem);
+{$ENDIF}
 
     if CurrentHedgehog <> nil then
         with CurrentHedgehog^ do
@@ -136,7 +147,7 @@ for i:= 0 to Pred(Targets.Count) do
         with Me^.Hedgehog^ do
             a:= CurAmmoType;
         aa:= a;
-        SDL_delay(0); // hint to let the context switch run
+        {$IFDEF WEBGL}hw_ai_yield{$ELSE}SDL_delay(0){$ENDIF}; // hint to let the context switch run
         repeat
         if (CanUseAmmo[a])
             and ((not rareChecks) or ((AmmoTests[a].flags and amtest_Rare) = 0))
@@ -354,6 +365,7 @@ if ((CurrentHedgehog^.MultiShootAttacks = 0) or ((Ammoz[Me^.Hedgehog^.CurAmmoTyp
 
     while (Stack.Count > 0) and (not StopThinking) do
         begin
+        {$IFDEF WEBGL}hw_ai_yield;{$ENDIF}
         Pop(Actions, Me^);
 
         AddAction(Actions, Me^.Message, aim_push, 250, 0, 0);
@@ -366,6 +378,7 @@ if ((CurrentHedgehog^.MultiShootAttacks = 0) or ((Ammoz[Me^.Hedgehog^.CurAmmoTyp
 
         while (not StopThinking) do
             begin
+            {$IFDEF WEBGL}hw_ai_yield;{$ENDIF}
     {$HINTS OFF}
             CanGo:= HHGo(Me, @AltMe, GoInfo);
     {$HINTS ON}
@@ -542,7 +555,7 @@ if ((Me^.State and gstAttacked) = 0) or isInMultiShoot or bonuses.activity or ((
             or BestActions.isWalkingToABetterPlace;
 
         if (StartTicks > GameTicks - 1500) and (not StopThinking) then
-            SDL_Delay(700);
+            {$IFDEF WEBGL}hw_ai_sleep(700){$ELSE}SDL_Delay(700){$ENDIF};
 
         if (BestActions.Score < -1023) and (not BestActions.isWalkingToABetterPlace) then
             begin
@@ -593,23 +606,29 @@ else
         Walk(@WalkMe, Actions);
         if not bonuses.activity then dec(i);
         if not StopThinking then
-            SDL_Delay(100)
+            {$IFDEF WEBGL}hw_ai_sleep(100){$ELSE}SDL_Delay(100){$ENDIF}
         end
     end;
 
 Me^.State:= Me^.State and (not gstHHThinking);
 Think:= 0;
+{$IFNDEF WEBGL}
 SDL_SemPost(ThreadSem);
+{$ENDIF}
 end;
 
 procedure StartThink(Me: PGear);
+{$IFNDEF WEBGL}
 var ThinkThread: PSDL_Thread;
+{$ENDIF}
 begin
 if ((Me^.State and (gstAttacking or gstHHJumping or gstMoving)) <> 0)
 or isInMultiShoot then
     exit;
 
+{$IFNDEF WEBGL}
 SDL_SemWait(ThreadSem);
+{$ENDIF}
 //DeleteCI(Me); // this will break demo/netplay
 
 Me^.State:= Me^.State or gstHHThinking;
@@ -627,8 +646,12 @@ FillTargets;
 
 FillBonuses(((Me^.State and gstAttacked) <> 0) and (not isInMultiShoot) and ((GameFlags and gfInfAttack) = 0));
 
+{$IFDEF WEBGL}
+hw_ai_start(@Think, Me);
+{$ELSE}
 ThinkThread:= SDL_CreateThread(@Think, PChar('think'), Me);
 SDL_DetachThread(ThinkThread);
+{$ENDIF}
 end;
 
 {$IFDEF DEBUGAI}
@@ -686,13 +709,17 @@ end;
 procedure initModule;
 begin
     StartTicks:= 0;
+{$IFNDEF WEBGL}
     ThreadSem:= SDL_CreateSemaphore(1);
+{$ENDIF}
 end;
 
 procedure freeModule;
 begin
     FreeActionsList();
+{$IFNDEF WEBGL}
     SDL_DestroySemaphore(ThreadSem);
+{$ENDIF}
 end;
 
 end.

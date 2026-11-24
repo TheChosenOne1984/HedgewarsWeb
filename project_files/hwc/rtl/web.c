@@ -8,11 +8,19 @@
  *   JS -> engine: Module._hw_ipc_push(ptr, len) appends to the inbound queue,
  *                 the engine drains it with hw_ipc_recv() every frame.
  *   engine -> JS: hw_ipc_send() calls Module.onIpcMessage(Uint8Array).
+ *
+ * AI: the desktop engine thinks in a separate thread. The web engine has no
+ * threads, so the unchanged AI code runs in a fiber instead: the main loop
+ * gives it a time slice every frame (hw_ai_run_slice), and the AI yields back
+ * at a few check points once the slice is used up (hw_ai_yield, hw_ai_sleep).
+ * Fibers need Asyncify; only the functions on the fiber paths are
+ * instrumented (see ASYNCIFY_ONLY in project_files/hwc/CMakeLists.txt).
  */
 
 #ifdef __EMSCRIPTEN__
 
 #include <emscripten.h>
+#include <emscripten/fiber.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,5 +88,85 @@ EM_JS(void, hw_web_engine_exit, (int code), {
     if (Module.onEngineExit)
         Module.onEngineExit(code);
 });
+
+#define HW_AI_C_STACK_SIZE (2 * 1024 * 1024)
+#define HW_ASYNCIFY_STACK_SIZE (64 * 1024)
+
+static emscripten_fiber_t hw_main_fiber, hw_ai_fiber;
+static int hw_main_fiber_ready = 0;
+static char hw_main_asyncify_stack[HW_ASYNCIFY_STACK_SIZE];
+static char hw_ai_asyncify_stack[HW_ASYNCIFY_STACK_SIZE];
+static char *hw_ai_c_stack = NULL;
+static int (*hw_ai_entry)(void *) = NULL;
+static void *hw_ai_arg = NULL;
+static int hw_ai_running = 0;   /* a think job exists and has not finished */
+static int hw_in_ai_fiber = 0;  /* currently executing on the AI fiber */
+static double hw_ai_deadline = 0;
+
+static void hw_ai_fiber_main(void *unused)
+{
+    (void)unused;
+    hw_ai_entry(hw_ai_arg);
+    hw_ai_running = 0;
+    hw_in_ai_fiber = 0;
+    emscripten_fiber_swap(&hw_ai_fiber, &hw_main_fiber);
+}
+
+/* start a think job; it runs in the slices given by hw_ai_run_slice() */
+void hw_ai_start(int (*entry)(void *), void *arg)
+{
+    if (!hw_main_fiber_ready)
+    {
+        emscripten_fiber_init_from_current_context(&hw_main_fiber,
+            hw_main_asyncify_stack, sizeof(hw_main_asyncify_stack));
+        hw_main_fiber_ready = 1;
+    }
+    if (!hw_ai_c_stack && !(hw_ai_c_stack = malloc(HW_AI_C_STACK_SIZE)))
+        abort();
+    hw_ai_entry = entry;
+    hw_ai_arg = arg;
+    emscripten_fiber_init(&hw_ai_fiber, hw_ai_fiber_main, NULL,
+        hw_ai_c_stack, HW_AI_C_STACK_SIZE, hw_ai_asyncify_stack, sizeof(hw_ai_asyncify_stack));
+    hw_ai_running = 1;
+}
+
+int hw_ai_is_running(void)
+{
+    return hw_ai_running;
+}
+
+/* abandon the current think job; it is never resumed */
+void hw_ai_cancel(void)
+{
+    hw_ai_running = 0;
+}
+
+/* let the AI think for up to budget_ms (until its next check point) */
+void hw_ai_run_slice(int budget_ms)
+{
+    if (!hw_ai_running || hw_in_ai_fiber)
+        return;
+    hw_ai_deadline = emscripten_get_now() + budget_ms;
+    hw_in_ai_fiber = 1;
+    emscripten_fiber_swap(&hw_main_fiber, &hw_ai_fiber);
+    hw_in_ai_fiber = 0;
+}
+
+/* AI check point: return to the main loop if the slice is used up */
+void hw_ai_yield(void)
+{
+    if (hw_in_ai_fiber && emscripten_get_now() >= hw_ai_deadline)
+    {
+        emscripten_fiber_swap(&hw_ai_fiber, &hw_main_fiber);
+    }
+}
+
+/* the AI waits on purpose (SDL_Delay on desktop): give the frames back meanwhile */
+void hw_ai_sleep(int ms)
+{
+    double until = emscripten_get_now() + ms;
+    while (hw_in_ai_fiber && emscripten_get_now() < until)
+        emscripten_fiber_swap(&hw_ai_fiber, &hw_main_fiber);
+}
 
 #endif

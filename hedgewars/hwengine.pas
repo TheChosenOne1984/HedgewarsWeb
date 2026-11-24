@@ -172,6 +172,11 @@ begin
 end;
 
 ///////////////////////////////////////////////////////////////////////////////
+{$IFDEF WEBGL}
+// AI thinking time per frame in the web engine (the desktop AI runs in a thread)
+const cWebAIThinkSliceMs = 6;
+{$ENDIF}
+
 // main loop state, kept between iterations
 var PrevTime: LongWord;
     isTerminated: boolean;
@@ -191,6 +196,10 @@ var event: TSDL_Event;
     CurrTime: LongWord;
     wheelEvent: boolean;
 begin
+{$IFDEF WEBGL}
+        // the AI thinks in a fiber instead of a thread (see uAI)
+        hw_ai_run_slice(cWebAIThinkSliceMs);
+{$ENDIF}
         wheelEvent:= false;
         SDL_PumpEvents();
 

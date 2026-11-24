@@ -33,6 +33,15 @@ procedure hw_web_stop_main_loop; cdecl; external;
 // tell the JavaScript host that the engine has finished
 procedure hw_web_engine_exit(code: LongInt); cdecl; external;
 
+// The AI thinks in a fiber instead of a thread: the main loop gives it a time
+// slice per frame, the AI yields at check points when the slice is used up.
+procedure hw_ai_start(entry: pointer; arg: pointer); cdecl; external;
+function  hw_ai_is_running: LongInt; cdecl; external;
+procedure hw_ai_cancel; cdecl; external;
+procedure hw_ai_run_slice(budget_ms: LongInt); cdecl; external;
+procedure hw_ai_yield; cdecl; external;
+procedure hw_ai_sleep(ms: LongInt); cdecl; external;
+
 implementation
 
 end.
