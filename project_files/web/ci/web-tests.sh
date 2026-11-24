@@ -12,3 +12,6 @@ npm ci --no-fund --no-audit --silent
 echo "== lint"; npm run -s lint
 echo "== types"; npm run -s check
 echo "== tests"; npm test --silent
+echo "== integration tests (game server over WebSocket)"
+(cd ../rust && cargo build -q -p hedgewars-server --features ws-connections)
+HW_SERVER_BIN="$(cd ../rust && pwd)/target/debug/hedgewars-server" npm run -s test:integration

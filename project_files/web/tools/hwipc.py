@@ -12,6 +12,7 @@ engine carry the GameTicks (u16, big endian) as the last two payload bytes.
 """
 
 import argparse
+import base64
 import os
 import random
 import socket
@@ -108,6 +109,9 @@ def record(args) -> int:
                   inithealth=args.health, sd_turns=args.sd_turns, casefreq=5,
                   minestime=3, minesnum=4, minedudpct=0, explosives=2)
     config = game_config(seed, args.theme, args.mapgen, teams, scheme, args.script)
+    if args.config_b64:
+        # a config built elsewhere, e.g. by the web frontend's config builder
+        config = base64.b64decode(args.config_b64)
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.bind(("127.0.0.1", 0))
@@ -218,6 +222,7 @@ def main():
     r.add_argument("--timeout", type=int, default=120, help="max seconds without engine traffic")
     r.add_argument("--max-time", type=int, default=600, help="max seconds per game")
     r.add_argument("--verbose", action="store_true")
+    r.add_argument("--config-b64", help="use this config (base64 IPC frames) instead of building one")
     r.add_argument("--prequeue", action="store_true",
                    help="send config and pong right away (required by the web engine)")
     r.set_defaults(func=record)
