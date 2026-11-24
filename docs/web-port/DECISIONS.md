@@ -216,5 +216,6 @@ Format: what was decided, why, and what was rejected.
   an AI-vs-AI game runs to completion in Chromium (SwiftShader) at a constant 16.7 ms per frame
   (longest frame below 50 ms), with sound initialised and a mid-game window resize handled.
   Firefox works headed under xvfb (headless Firefox has no GL in the container).
-- Not yet verified automatically: keyboard/mouse play of a hotseat game, pointer lock, fullscreen
-  and audio output (they need a real browser session).
+- Keyboard input in a hotseat game works (`KEYTEST=1`: the active hedgehog walks and jumps).
+- Not yet verified automatically: mouse aiming with pointer lock, fullscreen and audible sound
+  (they need a real browser session).

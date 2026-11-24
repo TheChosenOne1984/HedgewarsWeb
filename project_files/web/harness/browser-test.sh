@@ -6,7 +6,7 @@ PLAYWRIGHT_VERSION=1.49.1
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
 mkdir -p "$root/.cache/playwright"
 exec docker run --rm -i --ipc=host \
-    -u "$(id -u):$(id -g)" -e HOME=/tmp -e HARNESS_QUERY -e BROWSER \
+    -u "$(id -u):$(id -g)" -e HOME=/tmp -e HARNESS_QUERY -e BROWSER -e KEYTEST \
     -e npm_config_cache=/src/.cache/playwright/npm \
     -v "$root:/src" -w /src \
     "mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble" \

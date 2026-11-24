@@ -63,6 +63,20 @@ await page.evaluate(() => {
     requestAnimationFrame(tick);
 });
 
+// KEYTEST=1: hotseat input check, move the current hedgehog with the keyboard
+if (process.env.KEYTEST) {
+    await page.waitForTimeout(15000);
+    await page.mouse.click(640, 500);
+    await page.focus('#canvas');
+    await page.screenshot({ path: path.join(outDir, 'key-before.png') });
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(2500);
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.press('Enter'); // long jump
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: path.join(outDir, 'key-after.png') });
+}
+
 const start = Date.now();
 let shot = 0;
 while (Date.now() - start < seconds * 1000) {
