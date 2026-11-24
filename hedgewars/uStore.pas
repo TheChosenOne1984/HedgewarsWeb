@@ -375,6 +375,12 @@ begin
             Handle:= nil;
             end;
         s:= cPathz[ptFonts] + '/' + Name;
+{$IFDEF WEBGL}{$IFNDEF MOBILE}
+        // The web frontend downloads the large CJK font only when it is needed
+        // (CJK locale or names); without it, render with the base font.
+        if (font >= CJKfnt16) and (not pfsExists(s)) then
+            s:= cPathz[ptFonts] + '/' + Fontz[THWFont(ord(font) - (ord(High(THWFont)) + 1) div 2)].Name;
+{$ENDIF}{$ENDIF}
         WriteToConsole(msgLoading + s + ' (' + inttostr(Height) + 'pt)... ');
         Handle:= TTF_OpenFontRW(rwopsOpenRead(s), true, Height);
         if SDLCheck(Handle <> nil, 'TTF_OpenFontRW', true) then exit;
