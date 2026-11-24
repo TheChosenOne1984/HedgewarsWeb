@@ -125,6 +125,11 @@ def record(args) -> int:
     conn.settimeout(args.timeout)
 
     demo = bytearray()
+    if args.prequeue:
+        # like the web frontend: queue config and pong before the engine asks
+        conn.sendall(config + frame(b"!"))
+        demo += config
+
     buf = bytearray()
     finished = False
     deadline = time.monotonic() + args.max_time
@@ -147,8 +152,9 @@ def record(args) -> int:
                 if c == ord("?"):
                     conn.sendall(frame(b"!"))
                 elif c == ord("C"):
-                    conn.sendall(config)
-                    demo += config
+                    if not args.prequeue:
+                        conn.sendall(config)
+                        demo += config
                 elif c == ord("E"):
                     print("engine error:", msg[1:-2].decode(errors="replace"), file=sys.stderr)
                 elif c == ord("q"):
@@ -212,6 +218,8 @@ def main():
     r.add_argument("--timeout", type=int, default=120, help="max seconds without engine traffic")
     r.add_argument("--max-time", type=int, default=600, help="max seconds per game")
     r.add_argument("--verbose", action="store_true")
+    r.add_argument("--prequeue", action="store_true",
+                   help="send config and pong right away (required by the web engine)")
     r.set_defaults(func=record)
     p = sub.add_parser("replay")
     p.add_argument("--engine", required=True)
