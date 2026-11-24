@@ -10,6 +10,7 @@ on:
       - 'project_files/hwc/**'
       - 'project_files/web/**'
       - 'rust/**'
+      - 'web/**'
       - '.github/workflows/web-port.yml'
 
 jobs:
@@ -45,3 +46,15 @@ jobs:
 
       - name: Server and protocol tests
         run: project_files/web/docker/run.sh native project_files/web/ci/server-tests.sh
+
+  web-tests:
+    name: web frontend
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build toolchain image
+        run: docker build --target web -t hw-web-web project_files/web/docker
+
+      - name: Lint, types, tests
+        run: project_files/web/docker/run.sh web project_files/web/ci/web-tests.sh
