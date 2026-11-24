@@ -3,6 +3,9 @@
 #if defined(__APPLE__) && !defined(EMSCRIPTEN)
 #include <OpenGL/gl.h>
 #else
+#ifndef GL_GLEXT_PROTOTYPES
+#define GL_GLEXT_PROTOTYPES
+#endif
 #include "GL/gl.h"
 #endif
 
