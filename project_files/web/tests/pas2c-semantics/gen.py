@@ -27,6 +27,7 @@ TYPES = {
 BINOPS = ["+", "-", "*", "div", "mod", "and", "or", "xor"]
 CMPOPS = ["<", "<=", "=", "<>", ">", ">="]
 SHIFTS = ["0", "1", "4", "16", "31"]
+CHARS = ["0", "65", "127", "128", "200", "255"]
 RANDOM_EXPRS = int(os.environ.get("SEMTEST_EXPRS", "300"))
 
 
@@ -44,10 +45,12 @@ def main(out):
     for t, vals in TYPES.items():
         w(f"    c{short(t)}: array[0..{len(vals) - 1}] of {t} = ({', '.join(vals)});")
     w(f"    cSH: array[0..{len(SHIFTS) - 1}] of LongInt = ({', '.join(SHIFTS)});")
+    w(f"    cCH: array[0..{len(CHARS) - 1}] of Byte = ({', '.join(CHARS)});")
     w("var")
     for t in TYPES:
         w(f"    x{short(t)}, y{short(t)}, z{short(t)}: {t};")
     w("    i, j, k: LongInt;")
+    w("    xCH, yCH: Char;")
     w("    q: Int64;")
     w("    r: LongInt;")
     w("    bo: boolean;")
@@ -128,6 +131,28 @@ def main(out):
         w("    end")
         w("end;")
         w("")
+
+    # Char is unsigned in Pascal: comparisons and ord()
+    procs.append("t_chars")
+    w("procedure t_chars;")
+    w("begin")
+    w(f"    for i:= 0 to {len(CHARS) - 1} do")
+    w(f"    for j:= 0 to {len(CHARS) - 1} do")
+    w("    begin")
+    w("        xCH:= Char(cCH[i]);")
+    w("        yCH:= Char(cCH[j]);")
+    w("        str(i * 100 + j, s);")
+    w("        s:= 'CH ' + s;")
+    for op in CMPOPS:
+        w(f"        outB(s + ' {op}', xCH {op} yCH);")
+    w("        outB(s + ' >#127', xCH > #127);")
+    w("        outB(s + ' >=#$80', xCH >= #$80);")
+    w("        outQ(s + ' ord', ord(xCH));")
+    w("        outQ(s + ' ord-128', ord(xCH) - 128);")
+    w("        outQ(s + ' ord shr', ord(xCH) shr 1);")
+    w("    end")
+    w("end;")
+    w("")
 
     # random nested expressions (fixed seed): typing of intermediate results
     rnd = random.Random(int(os.environ.get("SEMTEST_SEED", "20261124")))
