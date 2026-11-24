@@ -129,17 +129,18 @@ if(BUILD_ENGINE_JS)
         "-sMAX_WEBGL_VERSION=1"
         "-sFULL_ES2=1"
         "-sEXPORTED_FUNCTIONS=[${HW_WEB_EXPORTS}]"
-        "-sEXPORTED_RUNTIME_METHODS=[FS,GL,ccall,cwrap,UTF8ToString,stringToNewUTF8,HEAPU8]"
+        "-sEXPORTED_RUNTIME_METHODS=[FS,GL,ccall,cwrap,UTF8ToString,stringToUTF8,stringToNewUTF8,HEAPU8]"
         "-sEXIT_RUNTIME=0"
         "-sINVOKE_RUN=0"
         "-lidbfs.js"
         "-lnodefs.js"
         # The AI runs in a fiber (rtl/web.c), which needs Asyncify. Only the
         # functions that can be on the stack when fibers switch are instrumented
-        # (dynCall_vi is the trampoline that enters a fiber).
+        # (dynCall_vi enters a fiber, dynCall_v is how the browser main loop
+        # calls the frame callback).
         "-sASYNCIFY=1"
         "-sASYNCIFY_IGNORE_INDIRECT=1"
-        "-sASYNCIFY_ONLY=[dynCall_vi,hw_ai_fiber_main,hw_ai_run_slice,hw_ai_yield,hw_ai_sleep,uai_Think,uai_Walk,uai_TestAmmos,hwengine_MainLoopIteration,hwengine_MainLoop,hwengine_WebMainLoopStep,hwengine_WebMainLoop,hwengine_GameRoutine,hwengine_Game,hwengine_RunEngine]"
+        "-sASYNCIFY_ONLY=[dynCall_v,dynCall_vi,hw_ai_fiber_main,hw_ai_run_slice,hw_ai_yield,hw_ai_sleep,uai_Think,uai_Walk,uai_TestAmmos,hwengine_MainLoopIteration,hwengine_MainLoop,hwengine_WebMainLoopStep,hwengine_WebMainLoop,hwengine_GameRoutine,hwengine_Game,hwengine_RunEngine]"
         )
     # keep function names in the wasm module: readable stack traces, small cost
     target_link_options(hwengine PRIVATE "--profiling-funcs")
