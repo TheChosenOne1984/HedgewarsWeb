@@ -73,7 +73,7 @@ typedef Integer * PInteger;
 typedef ptrdiff_t PtrInt;
 typedef wchar_t widechar;
 typedef wchar_t* PWideChar;
-typedef char Char;
+typedef unsigned char Char; /* Pascal Char is unsigned */
 typedef PtrInt SizeInt;
 typedef char ** PPChar;
 typedef Word* PWord;
