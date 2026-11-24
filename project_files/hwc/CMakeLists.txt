@@ -87,6 +87,7 @@ add_custom_command(OUTPUT ${engine_sources}
                    COMMAND "${EXECUTABLE_OUTPUT_PATH}/pas2c${CMAKE_EXECUTABLE_SUFFIX}"
                    ARGS ${pas2c_args}
                    DEPENDS pas2c                     #converter tool
+                           "${EXECUTABLE_OUTPUT_PATH}/pas2c${CMAKE_EXECUTABLE_SUFFIX}"
                            ${engine_sources_pas}     #original pascal file
                   )
 
@@ -101,6 +102,11 @@ endif()
 #compile the c files
 add_definitions(-DPAS2C)
 add_definitions(-Werror=incompatible-pointer-types)
+# Pascal semantics: signed overflow wraps, pointer casts alias freely
+add_compile_options(-fwrapv -fno-strict-aliasing)
+# the operator macros in rtl/fpcops.h type-check casts in _Generic branches
+# that are never selected, e.g. pointer to integer for pointer comparisons
+add_compile_options(-Wno-pointer-to-int-cast -Wno-void-pointer-to-int-cast)
 
 add_executable(hwengine WIN32 ${engine_sources})
 

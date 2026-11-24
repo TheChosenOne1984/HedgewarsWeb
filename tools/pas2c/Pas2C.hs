@@ -1090,23 +1090,28 @@ expr2C bop@(BinOp op expr1 expr2) = do
                      modify(\s -> s{lastType = BTBool})
                      return . parens . hcat . punctuate (text " || ") . map (\i -> parens $ e1 <+> text "==" <+> i) $ ids
                  _ -> error "'in' against not set expression"
+        -- integer operators follow FPC semantics via the fpcrtl_* macros (rtl/fpcops.h)
         (o, _, _) | o `elem` boolOps -> do
                         modify(\s -> s{lastType = BTBool})
-                        return $ e1 <+> text o <+> e2
-                  | otherwise -> do
-                        o' <- return $ case o of
-                            "/(float)" -> text "/(float)" -- pascal returns real value
-                            _ -> text o
-                        e1' <- return $ case (o, t1, t2) of
-                                ("-", BTInt False, BTInt False) -> parens $ text "(int64_t)" <+> parens e1
-                                _ -> e1
-                        e2' <- return $ case (o, t1, t2) of
-                                ("-", BTInt False, BTInt False) -> parens $ text "(int64_t)" <+> parens e2
-                                _ -> e2
-                        return $ e1' <+> o' <+> e2'
+                        return $ text ("fpcrtl_cmp" ++ litSuffix) <> parens (e1 <> comma <+> text o <> comma <+> e2)
+                  | o == "/(float)" -> return $ e1 <+> text o <+> e2 -- pascal returns real value
+                  | isJust (lookup o fpcOps) -> do
+                        let suffix = if o `elem` ["<<", ">>"] then "" else litSuffix
+                        return $ text (fromJust (lookup o fpcOps) ++ suffix) <> parens (e1 <> comma <+> e2)
+                  | otherwise -> return $ e1 <+> text o <+> e2
     where
         fff t1 t2 = BTFunction False False [(False, t1), (False, t2)]
+        -- a non-negative literal operand takes the type of the other operand if it fits
+        litSuffix = case (nonNegLiteral expr1, nonNegLiteral expr2) of
+            (False, True) -> "_cr"
+            (True, False) -> "_cl"
+            _ -> ""
+        nonNegLiteral (NumberLiteral n) = take 1 n /= "-"
+        nonNegLiteral (HexNumber _) = True
+        nonNegLiteral _ = False
         boolOps = ["==", "!=", "<", ">", "<=", ">="]
+        fpcOps = [("+", "fpcrtl_add"), ("-", "fpcrtl_sub"), ("*", "fpcrtl_mul"), ("/", "fpcrtl_div"), ("%", "fpcrtl_mod")
+                 , ("&", "fpcrtl_and"), ("|", "fpcrtl_or"), ("^", "fpcrtl_xor"), ("<<", "fpcrtl_shl"), (">>", "fpcrtl_shr")]
         procCompare expr1 expr2 op =
             case (expr1, expr2) of
                 (Reference r1, Reference r2) -> do
@@ -1144,7 +1149,11 @@ expr2C (PrefixOp op expr) = do
                      "not" -> text "!"
                      _ -> text (op2C op)
             return $ o <> e
-        _ -> return $ text (op2C op) <> e
+        _ -> return $ case (op, expr) of
+                 ("-", NumberLiteral n) | take 1 n /= "-" -> text "-" <> e -- a constant, typed like the literal
+                 ("-", _) -> text "fpcrtl_neg" <> parens e
+                 ("not", _) -> text "fpcrtl_not" <> parens e
+                 _ -> text (op2C op) <> e
 expr2C Null = return $ text "NULL"
 expr2C (CharCode a) = do
     modify(\s -> s{lastType = BTChar})

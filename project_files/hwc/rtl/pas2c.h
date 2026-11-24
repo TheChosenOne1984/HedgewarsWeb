@@ -6,6 +6,8 @@
 #include <wchar.h>
 #include <math.h>
 
+#include "fpcops.h"
+
 #define MAX_PARAMS 64
 #define MAX_ANSISTRING_LENGTH 16382
 
