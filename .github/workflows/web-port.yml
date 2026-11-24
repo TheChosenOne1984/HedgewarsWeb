@@ -13,23 +13,23 @@ on:
       - '.github/workflows/web-port.yml'
 
 jobs:
-  m0-gate:
-    name: pas2c engine determinism gate
+  engine-gate:
+    name: engine determinism gate (FPC, pas2c, web)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
       - name: Build toolchain image
-        run: docker build --target desktop -t hw-web-desktop project_files/web/docker
+        run: docker build --target web -t hw-web-web project_files/web/docker
 
-      - name: M0 gate (FPC vs pas2c engine)
-        run: project_files/web/docker/run.sh desktop project_files/web/ci/m0-gate.sh
+      - name: Engine gate (FPC vs pas2c vs web engine)
+        run: project_files/web/docker/run.sh web project_files/web/ci/engine-gate.sh
 
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: m0-gate-logs
+          name: engine-gate-logs
           path: |
-            build-m0/*.log
-            build-m0/corpus/
+            build-gate/*.log
+            build-gate/corpus/

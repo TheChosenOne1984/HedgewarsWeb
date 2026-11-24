@@ -4,7 +4,8 @@
 #   native  - FPC engine, pas2c (GHC) engine, Rust libs, server, Lua tests,
 #             determinism gate. Everything needed for M0 / CI.
 #   desktop - native + Qt6, to verify that frontend-qt6 keeps building.
-#   web     - native + emsdk + Rust wasm32-unknown-emscripten target (M1+).
+#   web     - desktop + emsdk + Rust wasm32-unknown-emscripten target; runs
+#             every gate (FPC, pas2c and web engine).
 #
 # Build:  docker build -f project_files/web/docker/Dockerfile --target native -t hw-web-native .
 #
@@ -47,7 +48,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 
-FROM native AS web
+FROM desktop AS web
 ARG EMSDK_VERSION=4.0.10
 ENV EMSDK=/opt/emsdk
 RUN git clone --depth 1 --branch ${EMSDK_VERSION} https://github.com/emscripten-core/emsdk.git ${EMSDK} \

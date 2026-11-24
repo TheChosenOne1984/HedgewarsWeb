@@ -1,14 +1,16 @@
 #!/bin/sh
 # Record the determinism gate demo corpus with the given engine.
-# Usage: record-corpus.sh <hwengine> <outdir> <tag>
+# Usage: record-corpus.sh <hwengine> <outdir> <tag> [extra hwipc.py record args]
+# The web engine needs "--prequeue" (it cannot wait for the frontend).
 set -e
-engine="$1"; out="$2"; tag="$3"
+engine="$1"; out="$2"; tag="$3"; shift 3
+extra="$*"
 mkdir -p "$out"
 here="$(dirname "$0")"
 rec() {
     name="$1"; shift
     python3 -I "$here/hwipc.py" record --engine "$engine" --prefix share/hedgewars/Data \
-        --out "$out/$tag-$name.hwd" "$@" > "$out/$tag-$name.log" 2>&1 \
+        --out "$out/$tag-$name.hwd" $extra "$@" > "$out/$tag-$name.log" 2>&1 \
         && echo "recorded $tag-$name" || { echo "FAILED $tag-$name"; tail -5 "$out/$tag-$name.log"; }
 }
 rec template   --seed 11 --theme Nature --mapgen 0 --teams 2 --hogs 3 --health 100 --damage 100 &
