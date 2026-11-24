@@ -30,7 +30,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         ghc libghc-mtl-dev libghc-parsec3-dev \
         libphysfs-dev libpng-dev liblua5.1-dev \
         libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-net-dev libsdl2-ttf-dev \
-        libgl-dev libglu1-mesa-dev \
+        libgl-dev libglu1-mesa-dev libssl-dev \
         xvfb \
     && rm -rf /var/lib/apt/lists/*
 

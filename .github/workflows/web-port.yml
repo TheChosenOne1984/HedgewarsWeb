@@ -33,3 +33,15 @@ jobs:
           path: |
             build-gate/*.log
             build-gate/corpus/
+
+  server-tests:
+    name: server (all features)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build toolchain image
+        run: docker build --target native -t hw-web-native project_files/web/docker
+
+      - name: Server and protocol tests
+        run: project_files/web/docker/run.sh native project_files/web/ci/server-tests.sh
