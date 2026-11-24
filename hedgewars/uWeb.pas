@@ -33,6 +33,10 @@ procedure hw_web_stop_main_loop; cdecl; external;
 // tell the JavaScript host that the engine has finished
 procedure hw_web_engine_exit(code: LongInt); cdecl; external;
 
+// read a campaign ('V') or mission ('v') variable from the frontend into a
+// shortstring; the desktop engine asks over IPC and waits for the reply
+procedure hw_web_get_var(kind: LongInt; name: PChar; value: pointer); cdecl; external;
+
 // The AI thinks in a fiber instead of a thread: the main loop gives it a time
 // slice per frame, the AI yields at check points when the slice is used up.
 procedure hw_ai_start(entry: pointer; arg: pointer); cdecl; external;

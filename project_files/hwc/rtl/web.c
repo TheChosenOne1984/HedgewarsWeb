@@ -25,6 +25,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Asyncify is linked in for the AI fiber. SDL would then yield to the browser
+ * in SDL_GL_SwapWindow (emscripten_sleep), which must not happen outside the
+ * instrumented functions; the engine returns to the browser every frame
+ * anyway. */
+__attribute__((constructor)) static void hw_web_init(void)
+{
+    setenv("SDL_EMSCRIPTEN_ASYNCIFY", "0", 1);
+}
+
 static uint8_t *ipc_in = NULL;
 static size_t ipc_cap = 0, ipc_head = 0, ipc_tail = 0;
 
@@ -88,6 +97,29 @@ EM_JS(void, hw_web_engine_exit, (int code), {
     if (Module.onEngineExit)
         Module.onEngineExit(code);
 });
+
+/* Campaign ('V') and mission ('v') variables: the frontend keeps them (it
+ * receives the "V!"/"v!" save messages over IPC) and answers synchronously
+ * through Module.getEngineVar(kind, name). The value is written to a Pascal
+ * shortstring (length byte + up to 255 bytes). */
+EM_JS(int, hw_web_get_var_js, (int kind, const char *name, char *buf, int bufsize), {
+    var v = Module.getEngineVar ? Module.getEngineVar(String.fromCharCode(kind), UTF8ToString(name)) : null;
+    if (v === null || v === undefined)
+        v = '';
+    return stringToUTF8(String(v), buf, bufsize);
+});
+
+void hw_web_get_var(int kind, const char *name, unsigned char *shortstr)
+{
+    char buf[256];
+    int n = hw_web_get_var_js(kind, name, buf, sizeof(buf));
+    if (n < 0)
+        n = 0;
+    if (n > 255)
+        n = 255;
+    shortstr[0] = (unsigned char)n;
+    memcpy(shortstr + 1, buf, n);
+}
 
 #define HW_AI_C_STACK_SIZE (2 * 1024 * 1024)
 #define HW_ASYNCIFY_STACK_SIZE (64 * 1024)

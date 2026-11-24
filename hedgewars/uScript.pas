@@ -92,6 +92,9 @@ uses LuaPas,
 {$IFNDEF PAS2C}
     , typinfo
 {$ENDIF}
+{$IFDEF WEBGL}
+    , uWeb
+{$ENDIF}
     ;
 
 var luaState : Plua_State;
@@ -3264,7 +3267,9 @@ end;
 function lc_getcampaignvar(L : Plua_State): LongInt; Cdecl;
 begin
     if CheckLuaParamCount(L, 1, 'GetCampaignVar', 'varname') then
-        SendIPCAndWaitReply('V?' + lua_tostring(L, 1) + #0);
+        // the web engine cannot wait for the frontend, it reads the value synchronously
+        {$IFDEF WEBGL}hw_web_get_var(ord('V'), Str2PChar(lua_tostring(L, 1)), @CampaignVariable)
+        {$ELSE}SendIPCAndWaitReply('V?' + lua_tostring(L, 1) + #0){$ENDIF};
     lua_pushstring(L, str2pchar(CampaignVariable));
     lc_getcampaignvar := 1;
 end;
@@ -3279,7 +3284,8 @@ end;
 function lc_getmissionvar(L : Plua_State): LongInt; Cdecl;
 begin
     if CheckLuaParamCount(L, 1, 'GetMissionVar', 'varname') then
-        SendIPCAndWaitReply('v?' + lua_tostring(L, 1) + #0);
+        {$IFDEF WEBGL}hw_web_get_var(ord('v'), Str2PChar(lua_tostring(L, 1)), @MissionVariable)
+        {$ELSE}SendIPCAndWaitReply('v?' + lua_tostring(L, 1) + #0){$ENDIF};
     lua_pushstring(L, str2pchar(MissionVariable));
     lc_getmissionvar := 1;
 end;
