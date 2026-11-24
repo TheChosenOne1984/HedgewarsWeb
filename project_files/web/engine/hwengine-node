@@ -1,0 +1,5 @@
+#!/bin/sh
+# Command line wrapper: run the web engine in node like a native hwengine.
+# HWENGINE_MJS selects the module (default: build-web/bin/hwengine.mjs).
+here="$(cd "$(dirname "$0")" && pwd)"
+exec node "$here/run-node.mjs" "${HWENGINE_MJS:-build-web/bin/hwengine.mjs}" "$@"
