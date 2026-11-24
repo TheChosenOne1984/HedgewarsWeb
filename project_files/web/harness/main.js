@@ -1,6 +1,6 @@
 // M1 harness: start a local game in the web engine with a hard-coded config.
 // Query parameters: ?ai=1 (one AI team), ?bots=1 (two AI teams), ?theme=Name,
-// ?autostart=1, ?nosound=1.
+// ?autostart=1, ?nosound=1, ?quick=1 (low health, high damage: short games).
 
 import { EngineHost } from './engine/engine-host.js';
 import { buildGameConfig, randomSeed } from './engine/game-config.js';
@@ -55,7 +55,9 @@ async function start() {
     status(`loading ${packs.length} packs`);
     await host.loadPacks(packs, (done, total) => status(`loading packs ${Math.round(100 * done / total)}%`));
 
-    const config = buildGameConfig({ seed: randomSeed(), theme, teams: teams() });
+    const scheme = params.has('quick')
+        ? { initHealth: 20, damagePercent: 300, turnTime: 20, suddenDeathTurns: 2, waterRise: 100 } : {};
+    const config = buildGameConfig({ seed: randomSeed(), theme, teams: teams(), scheme });
     status('running');
     $('canvas').focus();
     const extra = ['--nomusic'];

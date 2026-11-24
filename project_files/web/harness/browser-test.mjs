@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, firefox } from 'playwright';
 
 const [siteArg, outDir, secondsArg] = process.argv.slice(2);
 const siteDir = path.resolve(siteArg);
@@ -31,9 +31,21 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((resolve) => server.listen(8080, resolve));
 
-const browser = await chromium.launch({
-    args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-});
+const browserName = process.env.BROWSER || 'chromium';
+const browser = browserName === 'firefox'
+    ? await firefox.launch({
+        // headless Firefox has no GL in the container; run headed under xvfb-run
+        headless: !process.env.DISPLAY,
+        env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1' },
+        firefoxUserPrefs: {
+            'webgl.force-enabled': true, 'webgl.out-of-process': false, 'gfx.webrender.software': true,
+            'media.autoplay.default': 0,
+        },
+    })
+    : await chromium.launch({
+        args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+               '--autoplay-policy=no-user-gesture-required'],
+    });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 const consoleLines = [];
 const errors = [];
@@ -56,6 +68,7 @@ let shot = 0;
 while (Date.now() - start < seconds * 1000) {
     await page.waitForTimeout(10000);
     await page.screenshot({ path: path.join(outDir, `shot-${String(shot++).padStart(2, '0')}.png`) });
+    if (shot === 3) await page.setViewportSize({ width: 1000, height: 640 }); // resize mid-game
     const exited = await page.evaluate(() => window.engineExitCode);
     if (exited !== undefined) break;
 }
@@ -73,7 +86,7 @@ const result = await page.evaluate(() => {
 });
 fs.writeFileSync(path.join(outDir, 'console.txt'), consoleLines.join('\n') + '\n');
 fs.writeFileSync(path.join(outDir, 'result.json'), JSON.stringify({ ...result, errors }, null, 1));
-console.log(JSON.stringify({ ...result, errors: errors.length }, null, 1));
+console.log(JSON.stringify({ browser: browserName, ...result, errors: errors.length }, null, 1));
 await browser.close();
 server.close();
 process.exit(errors.length ? 1 : 0);
