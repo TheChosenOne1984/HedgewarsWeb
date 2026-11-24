@@ -109,7 +109,9 @@ if LandTextures[0, 0].tex = nil then
                 begin
                 tex:= NewTexture(TEXSIZE, TEXSIZE, Pixels(x, y));
                 glBindTexture(GL_TEXTURE_2D, tex^.id);
+                {$IFNDEF WEBGL} // fixed-function parameter, unknown to WebGL
                 glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_PRIORITY, tpHigh);
+                {$ENDIF}
                 end
 else
 *)
