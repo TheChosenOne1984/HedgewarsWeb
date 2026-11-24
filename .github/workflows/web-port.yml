@@ -1,0 +1,35 @@
+name: Web port
+
+on:
+  push:
+    branches: [web-port, 'web-port/**']
+  pull_request:
+    paths:
+      - 'hedgewars/**'
+      - 'tools/pas2c/**'
+      - 'project_files/hwc/**'
+      - 'project_files/web/**'
+      - 'rust/**'
+      - '.github/workflows/web-port.yml'
+
+jobs:
+  m0-gate:
+    name: pas2c engine determinism gate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build toolchain image
+        run: docker build --target desktop -t hw-web-desktop project_files/web/docker
+
+      - name: M0 gate (FPC vs pas2c engine)
+        run: project_files/web/docker/run.sh desktop project_files/web/ci/m0-gate.sh
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m0-gate-logs
+          path: |
+            build-m0/*.log
+            build-m0/corpus/
