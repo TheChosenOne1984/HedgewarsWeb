@@ -117,3 +117,104 @@ Format: what was decided, why, and what was rejected.
 - The Mutant script was dropped from the corpus: AI-only Mutant games never end.
 - `project_files/web/ci/m0-gate.sh` runs everything (builds, Lua tests, semantics test, gate);
   `.github/workflows/web-port.yml` runs it in the pinned image.
+
+## M1: Engine in the browser
+
+### D13: Emscripten ports instead of find_package for the web build
+- `cmake_modules/EmscriptenPorts.cmake` defines INTERFACE targets for the SDL2, SDL2_image (PNG),
+  SDL2_ttf and SDL2_mixer (OGG) ports; the `find_package(SDL2...)` calls are skipped for
+  `BUILD_ENGINE_JS`. SDL2_net is not linked.
+- PhysFS has no port and the bundled `misc/libphysfs` is 2.1 (3.0 required): the `web` image builds
+  PhysFS 3.2.0 from its release tarball (pinned by SHA-256) into `/opt/wasm`.
+- The bundled Lua 5.1 builds with `LUA_USE_POSIX`.
+- Rust: `wasm32-unknown-emscripten` with rustc 1.91.0 and emsdk 4.0.10 links and runs; no ABI
+  issues were found (all FFI structs pass through by pointer or as plain integers).
+
+### D14: Output and environment
+- The engine links to an ES6 module (`hwengine.mjs` + `.wasm`) with `ENVIRONMENT=web,node`.
+  Node runs it headless for the tests (`project_files/web/engine/run-node.mjs`, `hwengine-node`).
+- `STACK_SIZE` is 8 MiB like native. With 1 MiB the stack silently overflowed into static data
+  (Pascal code keeps many 256-byte shortstrings on the stack), which showed up as heap corruption,
+  `free()` crashes and broken function pointers; found with `-sASSERTIONS=2`.
+- `--profiling-funcs` keeps function names in the module for readable stack traces.
+- Argument parsing in the web engine starts at index 1 like a program (the upstream library mode
+  starts at 0 but checks `--internal` at index 1).
+
+### D15: IPC transport
+- `uIO` routes all socket use through `ipcIsOpen`/`ipcSend`. Under `WEBGL` they use an in-memory
+  inbound queue (`hw_ipc_push`, exported) and a JavaScript callback (`Module.onIpcMessage`),
+  implemented in `project_files/hwc/rtl/web.c` and declared in `hedgewars/uWeb.pas`.
+- The wire format is unchanged, so engine messages can be relayed to the server as-is.
+- The web engine cannot wait for the frontend: the frontend queues the complete config and the
+  pong `!` before calling `hwengine_RunEngine` (as the plan proposed); `IPCWaitPongEvent` fails
+  loudly when the reply is missing.
+
+### D16: Main loop
+- `MainLoop`'s body is `MainLoopIteration`; desktop keeps the loop. The web engine registers
+  `WebMainLoopStep` with `emscripten_set_main_loop(…, 0, 0)` and reports the end with
+  `Module.onEngineExit(code)`; `halt` ends up in `Module.onExit(code)`.
+- Deviation: headless runs (`--stats-only`, `--lua-test`) keep the blocking loop on web. They draw
+  nothing and are used by tests in node, where a blocking run is simpler and faster.
+
+### D17: Campaign and mission variables
+- `GetCampaignVar`/`GetMissionVar` read synchronously from the frontend
+  (`Module.getEngineVar(kind, name)`); saving still goes over IPC ("V!"/"v!"), and the engine host
+  keeps a store that it updates from those messages.
+- `GenLandPreview` needed no change: its `IPCWaitPongEvent` is satisfied by the queued pong.
+
+### D18: AI in a fiber (deviation from "cooperative Think slices")
+- The plan asked for cooperative time slices. Rewriting `Think`/`Walk`/`TestAmmos` into a resumable
+  state machine would be a large, risky change to the AI search and hard to upstream.
+- Instead the unchanged AI code runs in an Emscripten fiber: the main loop gives it a 6 ms slice per
+  frame (`hw_ai_run_slice`), the AI yields at check points in `Walk` and `TestAmmos` once the slice
+  is used up (`hw_ai_yield`, which replaces the existing `SDL_delay(0)` hint), and its deliberate
+  waits (`SDL_Delay(700)`/`(100)`) give frames back (`hw_ai_sleep`).
+- Fibers need Asyncify. The plan rejected Asyncify for the main loop and blocking waits; here it is
+  limited to the functions that can be on the stack when fibers switch (`ASYNCIFY_ONLY`: the AI
+  functions, the main loop path and the `dynCall_v`/`dynCall_vi` trampolines), with
+  `ASYNCIFY_IGNORE_INDIRECT`. The module grew by about 7 %; there is no measurable frame cost.
+- SDL yields to the browser in `SDL_GL_SwapWindow` when Asyncify is present; that is disabled via
+  `SDL_EMSCRIPTEN_ASYNCIFY=0`.
+- `FreeActionsList` cannot wait for a thread: it abandons an unfinished think job and clears the
+  thinking flag while the gear is still valid.
+- The AI is not part of the synchronised simulation (its decisions travel as commands), so it does
+  not need to decide identically to the threaded version; it only must not stall the game.
+
+### D19: Fixes found by the WebAssembly build (also wrong on desktop)
+- `SDLh.pas`: five SDL2/SDL2_mixer functions were declared with wrong signatures
+  (`SDL_DestroyWindow`, `SDL_SetWindowFullscreen`, `Mix_LoadMUS_RW` (missing `freesrc`),
+  `Mix_PauseMusic`, `Mix_ResumeMusic`). x86 calling conventions tolerate this, WebAssembly traps.
+- `landgen` maze generator: `gen_range` over a `usize` range draws a `u32` on 32-bit targets and a
+  `u64` on 64-bit targets, so 32-bit builds generated different mazes (desync). It now samples a
+  `u64`; 64-bit results are unchanged.
+
+### D20: WebGL-specific engine changes (all under `WEBGL`)
+- `uMatrix`: skip the fixed-function self-test of `MatrixMultiply`.
+- Skip `GL_TEXTURE_PRIORITY`, `GL_LINE_SMOOTH` and `glEnable(GL_TEXTURE_2D)`.
+- `uStore`: if the CJK font is missing, the CJK font slots use the base font, so the 17 MB font is
+  only downloaded for CJK locales or names.
+- Headless node runs get a no-op GL context in the runner (desktop ignores GL calls without a
+  context the same way), instead of guarding the few GL calls the engine makes in stats-only mode.
+
+### D21: Asset packs
+- Source: the data set `cmake --install` produces (no `.svg`/`.xcf` sources).
+- Format: a small custom container (JSON index + concatenated files), unpacked into MEMFS by the
+  engine host. Rejected: mounting zip packs through PhysFS, because the Rust map generators read
+  templates and theme files with `std::fs`, which only sees real files.
+- Split: `core` (7.7 MB, 5.7 MB gzip: base graphics, hats, graves, flags, base font, English
+  locale, scripts, shaders, sounds, default voice, templates), plus `themes/*`, `maps/*`,
+  `voices/*`, `music/*`, `locale/*`, `fonts-cjk`, `forts`, `missions`. Names are content-addressed
+  (`<name>.<sha256[:16]>.hwpack`) for immutable caching; `manifest.json` lists them.
+- Hats stay in core: about 1 MB in 300 files would otherwise cost more in requests than they save.
+
+### D22: Verification of M1
+- The engine gate (`project_files/web/ci/engine-gate.sh`) builds the FPC, pas2c and web engines,
+  compares the Lua test output of all three, records 8 AI games with each engine (live games in the
+  web engine via the node IPC bridge) and replays all 24 demos with all three engines. All pass:
+  the WebAssembly engine is bit-identical to FPC on x86_64.
+- Browser smoke test (`project_files/web/harness/browser-test.sh`, pinned Playwright image):
+  an AI-vs-AI game runs to completion in Chromium (SwiftShader) at a constant 16.7 ms per frame
+  (longest frame below 50 ms), with sound initialised and a mid-game window resize handled.
+  Firefox works headed under xvfb (headless Firefox has no GL in the container).
+- Not yet verified automatically: keyboard/mouse play of a hotseat game, pointer lock, fullscreen
+  and audio output (they need a real browser session).
