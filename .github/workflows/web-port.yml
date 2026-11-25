@@ -13,6 +13,11 @@ on:
       - 'web/**'
       - '.github/workflows/web-port.yml'
 
+# a newer push to the same branch replaces a run still in progress
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   engine-gate:
     name: engine determinism gate (FPC, pas2c, web)
