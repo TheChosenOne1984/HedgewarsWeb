@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n.svelte';
   import { app } from '../lib/app.svelte';
   import Chat from '../components/Chat.svelte';
 
@@ -21,14 +22,15 @@
 <div class="lobby">
   <section class="panel rooms">
     <div class="bar">
-      <h2>Rooms</h2>
-      <button onclick={() => app.client.refreshRooms()}>Refresh</button>
+      <h2>{t('Rooms')}</h2>
+      <button onclick={() => app.client.refreshRooms()}>{t('Refresh')}</button>
     </div>
     <table>
       <thead
         ><tr
-          ><th>Room</th><th>Players</th><th>Teams</th><th>Owner</th><th>Map</th><th>Style</th><th
-          ></th></tr
+          ><th>{t('Room')}</th><th>{t('Players')}</th><th>{t('Teams')}</th><th>{t('Owner')}</th><th
+            >{t('Map')}</th
+          ><th>{t('Style')}</th><th></th></tr
         ></thead
       >
       <tbody>
@@ -42,27 +44,29 @@
             <td>{r.script}</td>
             <td
               ><button onclick={() => app.client.joinRoom(r.name)}
-                >{r.flags.includes('g') ? 'Watch' : 'Join'}</button
+                >{r.flags.includes('g') ? t('Watch') : t('Join')}</button
               ></td
             >
           </tr>
         {:else}
-          <tr><td colspan="7" class="muted">No rooms yet. Create one!</td></tr>
+          <tr><td colspan="7" class="muted">{t('No rooms yet. Create one!')}</td></tr>
         {/each}
       </tbody>
     </table>
     <form onsubmit={create}>
-      <input bind:value={roomName} placeholder="New room name" maxlength="40" />
-      <button class="primary">Create room</button>
+      <input bind:value={roomName} placeholder={t('New room name')} maxlength="40" />
+      <button class="primary">{t('Create room')}</button>
     </form>
   </section>
 
   <section class="panel players">
-    <h2>Players ({players.length})</h2>
+    <h2>{t('Players ({n})', { n: players.length })}</h2>
     <ul>
       {#each players as p (p.nick)}
         <li>
-          {p.nick}{p.flags.has('i') ? ' · in room' : ''}{p.flags.has('g') ? ' · playing' : ''}
+          {p.nick}{p.flags.has('i') ? ` · ${t('in room')}` : ''}{p.flags.has('g')
+            ? ` · ${t('playing')}`
+            : ''}
         </li>
       {/each}
     </ul>

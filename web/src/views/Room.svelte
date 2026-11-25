@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tr } from '../lib/i18n.svelte';
   import { app, choiceToRoomSettings } from '../lib/app.svelte';
   import { TEAM_COLORS } from '../lib/engine/frontend-data.generated';
   import Chat from '../components/Chat.svelte';
@@ -50,76 +51,82 @@
 {#if room}
   <div class="bar">
     <h2>{room.name}</h2>
-    <button onclick={() => app.client.leaveRoom()}>Leave room</button>
+    <button onclick={() => app.client.leaveRoom()}>{tr('Leave room')}</button>
   </div>
 
   <div class="room">
     <section class="panel">
-      <h3>Teams</h3>
+      <h3>{tr('Teams')}</h3>
       {#each teams as t (t.name)}
         <div class="team">
           <span class="swatch" style:background={color(t.colorIndex)}></span>
           <b>{t.name}</b>
-          <span class="muted">{t.owner}{t.difficulty ? ` · bot ${t.difficulty}` : ''}</span>
+          <span class="muted"
+            >{t.owner}{t.difficulty ? ` · ${tr('bot {n}', { n: t.difficulty })}` : ''}</span
+          >
           {#if isMaster}
             <select
               value={t.hedgehogsNumber}
               onchange={(e) => app.client.setHedgehogsNumber(t.name, Number(e.currentTarget.value))}
             >
-              {#each [1, 2, 3, 4, 5, 6, 7, 8] as n (n)}<option value={n}>{n} hogs</option>{/each}
+              {#each [1, 2, 3, 4, 5, 6, 7, 8] as n (n)}<option value={n}
+                  >{tr('{n} hogs', { n })}</option
+                >{/each}
             </select>
             <select
               value={t.colorIndex}
               onchange={(e) => app.client.setTeamColor(t.name, Number(e.currentTarget.value))}
             >
-              {#each TEAM_COLORS.keys() as i (i)}<option value={i}>colour {i + 1}</option>{/each}
+              {#each TEAM_COLORS.keys() as i (i)}<option value={i}
+                  >{tr('colour {n}', { n: i + 1 })}</option
+                >{/each}
             </select>
           {:else}
-            <span class="muted">{t.hedgehogsNumber} hogs</span>
+            <span class="muted">{tr('{n} hogs', { n: t.hedgehogsNumber })}</span>
           {/if}
           {#if t.owner === app.client.nick}
-            <button onclick={() => app.client.removeTeam(t.name)}>Remove</button>
+            <button onclick={() => app.client.removeTeam(t.name)}>{tr('Remove')}</button>
           {/if}
         </div>
       {:else}
-        <p class="muted">No teams yet.</p>
+        <p class="muted">{tr('No teams yet.')}</p>
       {/each}
       {#if addable.length > 0}
         <div class="add">
           <select bind:value={selected}>
             {#each addable as t (t.name)}<option value={t.name}
-                >{t.name}{t.difficulty ? ' (bot)' : ''}</option
+                >{t.name}{t.difficulty ? ` ${tr('(bot)')}` : ''}</option
               >{/each}
           </select>
-          <button onclick={addTeam}>Add team</button>
+          <button onclick={addTeam}>{tr('Add team')}</button>
         </div>
       {/if}
     </section>
 
     <section class="panel">
-      <h3>Players</h3>
+      <h3>{tr('Players')}</h3>
       <ul>
         {#each players as p (p)}
           <li>
             {flag(p, 'r') ? '✔' : '·'}
-            {p}{flag(p, 'h') ? ' (room master)' : ''}
+            {p}{flag(p, 'h') ? ` (${tr('room master')})` : ''}
           </li>
         {/each}
       </ul>
       <div class="actions">
         <button class:primary={!ready} onclick={() => app.client.toggleReady()}
-          >{ready ? 'Not ready' : 'Ready'}</button
+          >{ready ? tr('Not ready') : tr('Ready')}</button
         >
         {#if isMaster}
           <button class="primary" disabled={teams.length < 2} onclick={() => app.client.startGame()}
-            >Start game</button
+            >{tr('Start game')}</button
           >
         {/if}
       </div>
     </section>
 
     <section class="panel settings">
-      <h3>Game</h3>
+      <h3>{tr('Game')}</h3>
       <div class="game">
         <MapPreview params={previewParams} />
         <div class="options">
@@ -127,16 +134,16 @@
             <GameSettings bind:choice={app.choice} onchange={publish} />
           {:else}
             <dl>
-              <dt>Scheme</dt>
+              <dt>{tr('Scheme')}</dt>
               <dd>{cfg('SCHEME')}</dd>
-              <dt>Weapons</dt>
+              <dt>{tr('Weapons')}</dt>
               <dd>{cfg('AMMO')}</dd>
-              <dt>Style</dt>
+              <dt>{tr('Style')}</dt>
               <dd>{cfg('SCRIPT')}</dd>
-              <dt>Theme</dt>
+              <dt>{tr('Theme')}</dt>
               <dd>{cfg('THEME')}</dd>
-              <dt>Map</dt>
-              <dd>{cfg('MAP')} (generator {cfg('MAPGEN')})</dd>
+              <dt>{tr('Map')}</dt>
+              <dd>{cfg('MAP')} ({tr('generator {n}', { n: cfg('MAPGEN') })})</dd>
             </dl>
           {/if}
         </div>

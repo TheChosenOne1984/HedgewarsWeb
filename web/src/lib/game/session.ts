@@ -6,6 +6,7 @@ import { defaultAmmo, defaultScheme, MAPGEN, type GameSetup, type Scheme } from 
 import { gameConfig } from '../engine/config';
 import { EngineHost, ipcFrame, ipcRawFrame, ipcSplit } from '../engine/host';
 import { md5Hex } from '../engine/md5';
+import { t } from '../i18n.svelte';
 import type { PreviewParams } from '../engine/preview';
 import type { NetClient, Room } from '../net/client';
 
@@ -162,10 +163,10 @@ export class GameSession {
     });
   }
 
-  async run(setup: GameSetup, extraArgs: string[] = []): Promise<void> {
-    this.events.status('loading data');
-    await this.host.loadPacks(this.packs(setup), (done, total) =>
-      this.events.status(`loading data ${Math.round((100 * done) / total)}%`),
+  async run(setup: GameSetup, extraArgs: string[] = [], locale = 'en'): Promise<void> {
+    this.events.status(t('loading data'));
+    await this.host.loadPacks(this.packs(setup, locale), (done, total) =>
+      this.events.status(t('loading data {n}%', { n: Math.round((100 * done) / total) })),
     );
     this.events.status('running');
     await this.host.start(gameConfig(setup), extraArgs);
@@ -191,7 +192,7 @@ export class GameSession {
           this.finished = true;
           break;
         case 'E':
-          this.events.status(`engine error: ${text()}`);
+          this.events.status(t('engine error: {text}', { text: text() }));
           break;
         case 'i':
           this.events.stats(

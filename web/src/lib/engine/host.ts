@@ -242,6 +242,13 @@ export class EngineHost {
     }
   }
 
+  /** write a file into the engine's user directory (e.g. settings.ini) */
+  writeUserFile(path: string, data: string | Uint8Array) {
+    const full = `${USER_PREFIX}/${path}`;
+    this.module.FS.mkdirTree(full.substring(0, full.lastIndexOf('/')));
+    this.module.FS.writeFile(full, data);
+  }
+
   /** send bytes (one or more IPC frames) to the engine */
   push(bytes: Uint8Array) {
     const M = this.module;

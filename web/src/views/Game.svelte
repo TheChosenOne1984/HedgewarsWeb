@@ -1,13 +1,15 @@
 <script lang="ts">
+  import { getLocale, t } from '../lib/i18n.svelte';
   import { onMount } from 'svelte';
   import { app, ASSETS, choiceToRoomSettings } from '../lib/app.svelte';
   import { EngineHost } from '../lib/engine/host';
   import { md5Hex } from '../lib/engine/md5';
+  import { settingsIni } from '../lib/binds';
   import { roomToGameSetup, GameSession } from '../lib/game/session';
   import type { GameSetup } from '../lib/engine/config';
 
   let canvas: HTMLCanvasElement | undefined = $state();
-  let status = $state('starting');
+  let status = $state(t('starting'));
   let log: string[] = $state([]);
   let showLog = $state(false);
   const net = app.client.state === 'game';
@@ -59,7 +61,7 @@
         status: (s) => (status = s),
         stats: () => {},
         ended: (code, finished) => {
-          status = `game over (${code})`;
+          status = t('game over ({n})', { n: code });
           app.lastGame = { code, finished };
           app.screen = net ? (app.client.room ? 'room' : 'lobby') : 'local';
         },
@@ -72,14 +74,17 @@
         net && app.client.room
           ? await roomToGameSetup(app.client.room, app.client.nick)
           : localSetup();
+      host.writeUserFile('settings.ini', settingsIni(app.settings.binds));
+      const locale = getLocale();
       const args = [`--volume`, String(app.settings.volume)];
+      if (locale !== 'en') args.push('--locale', `${locale}.txt`);
       if (!app.settings.sound) args.push('--nosound');
       if (!app.settings.music) args.push('--nomusic');
       canvas?.focus();
-      await session.run(setup, args);
+      await session.run(setup, args, locale);
     })().catch((e: Error) => {
-      status = `error: ${e.message}`;
-      app.error = `The game could not start: ${e.message}`;
+      status = t('error: {text}', { text: e.message });
+      app.error = t('The game could not start: {text}', { text: e.message });
       app.screen = net ? 'room' : 'local';
     });
   });

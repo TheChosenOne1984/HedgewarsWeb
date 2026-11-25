@@ -5,9 +5,10 @@ import { DEFAULT_AMMO_SETS, DEFAULT_SCHEMES } from './engine/frontend-data.gener
 import { PreviewService, type PreviewParams } from './engine/preview';
 import { NetClient, type ChatLine, type RoomSettings } from './net/client';
 import type { TeamInfo } from './protocol/messages';
+import { setLocale, type Locale } from './i18n.svelte';
 import { load, save } from './storage';
 
-export type Screen = 'start' | 'lobby' | 'room' | 'game' | 'teams' | 'local';
+export type Screen = 'start' | 'lobby' | 'room' | 'game' | 'teams' | 'local' | 'settings';
 
 export interface Catalog {
   themes: string[];
@@ -26,6 +27,10 @@ export interface Settings {
   volume: number;
   sound: boolean;
   music: boolean;
+  /** user interface and engine language ('' = from the browser) */
+  locale: Locale | '';
+  /** key bindings that differ from the defaults (action -> engine key name) */
+  binds: Record<string, string>;
 }
 
 /** where the static assets live (engine module and asset packs) */
@@ -132,7 +137,11 @@ class AppState {
     volume: 70,
     sound: true,
     music: false,
+    locale: '',
+    binds: {},
   });
+  /** the screen to return to from the settings and team editor */
+  previousScreen = $state<Screen>('start');
   choice = $state<GameChoice>({
     schemeName: String(DEFAULT_SCHEMES[0]![0]),
     ammoName: DEFAULT_AMMO_SETS[0]!.name,
@@ -161,6 +170,7 @@ class AppState {
 
   async init() {
     this.settings = { ...this.settings, ...(await load<Partial<Settings>>('settings', {})) };
+    setLocale(this.settings.locale || undefined);
     if (new URLSearchParams(location.search).get('server')) this.settings.server = defaultServer();
     this.teams = await load<TeamInfo[]>('teams', [
       newTeam('Hedgehogs'),
@@ -178,7 +188,19 @@ class AppState {
   }
 
   saveSettings() {
-    void save('settings', this.settings);
+    void save('settings', $state.snapshot(this.settings));
+  }
+
+  /** open the settings or team editor, coming back to the current screen */
+  open(screen: 'settings' | 'teams') {
+    if (this.screen !== 'settings' && this.screen !== 'teams') this.previousScreen = this.screen;
+    this.screen = screen;
+  }
+
+  back() {
+    const s = this.previousScreen;
+    const connected = this.client.state !== 'disconnected';
+    this.screen = s === 'lobby' || s === 'room' ? (connected ? s : 'start') : s;
   }
 
   connect() {

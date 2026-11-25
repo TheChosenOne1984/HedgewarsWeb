@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n.svelte';
   import { app, newTeam } from '../lib/app.svelte';
 
   let index = $state(0);
@@ -10,7 +11,7 @@
     [3, 'Bot: normal'],
     [2, 'Bot: hard'],
     [1, 'Bot: expert'],
-  ] as const;
+  ] as const; // translated when shown
 
   function add() {
     let n = 1;
@@ -28,64 +29,66 @@
 </script>
 
 <div class="bar">
-  <h2>Teams</h2>
-  <button onclick={() => (app.screen = app.client.state === 'disconnected' ? 'start' : 'lobby')}
-    >Done</button
-  >
+  <h2>{t('Teams')}</h2>
+  <button onclick={() => app.back()}>{t('Done')}</button>
 </div>
 
 <div class="teams">
   <section class="panel list">
-    {#each app.teams as t, i (i)}
-      <button class:active={i === index} onclick={() => (index = i)}>{t.name}</button>
+    {#each app.teams as tm, i (i)}
+      <button class:active={i === index} onclick={() => (index = i)}>{tm.name}</button>
     {/each}
-    <button onclick={add}>+ New team</button>
+    <button onclick={add}>{t('+ New team')}</button>
   </section>
 
   {#if team}
     <section class="panel editor" onchange={() => app.saveTeams()} oninput={() => app.saveTeams()}>
-      <label>Name <input bind:value={team.name} maxlength="40" /></label>
+      <label>{t('Name')} <input bind:value={team.name} maxlength="40" /></label>
       <label
-        >Player
+        >{t('Player')}
         <select bind:value={team.difficulty}>
-          {#each levels as [v, label] (v)}<option value={v}>{label}</option>{/each}
+          {#each levels as [v, label] (v)}<option value={v}>{t(label)}</option>{/each}
         </select>
       </label>
       <label
-        >Grave
+        >{t('Grave')}
         <select bind:value={team.grave}
           >{#each app.catalog?.graves ?? [team.grave] as g (g)}<option>{g}</option>{/each}</select
         >
       </label>
       <label
-        >Fort
+        >{t('Fort')}
         <select bind:value={team.fort}
           >{#each app.catalog?.forts ?? [team.fort] as f (f)}<option>{f}</option>{/each}</select
         >
       </label>
       <label
-        >Voice
+        >{t('Voice')}
         <select bind:value={team.voicePack}
           >{#each app.catalog?.voices ?? [team.voicePack] as v (v)}<option>{v}</option
             >{/each}</select
         >
       </label>
       <label
-        >Flag
+        >{t('Flag')}
         <select bind:value={team.flag}
           >{#each app.catalog?.flags ?? [team.flag] as f (f)}<option>{f}</option>{/each}</select
         >
       </label>
-      <h3>Hedgehogs</h3>
+      <h3>{t('Hedgehogs')}</h3>
       {#each team.hedgehogs as hog, i (i)}
         <div class="hog">
-          <input bind:value={hog.name} maxlength="40" aria-label="Hedgehog {i + 1} name" />
-          <select bind:value={hog.hat} aria-label="Hedgehog {i + 1} hat">
+          <input
+            bind:value={hog.name}
+            maxlength="40"
+            aria-label={t('Hedgehog {n} name', { n: i + 1 })}
+          />
+          <select bind:value={hog.hat} aria-label={t('Hedgehog {n} hat', { n: i + 1 })}>
             {#each app.catalog?.hats ?? [hog.hat] as h (h)}<option>{h}</option>{/each}
           </select>
         </div>
       {/each}
-      <button onclick={remove} disabled={app.teams.length <= 1}>Delete team</button>
+      <button onclick={remove} disabled={app.teams.length <= 1}>{t('Delete team')}</button>
     </section>
   {/if}
 </div>

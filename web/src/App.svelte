@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from './lib/i18n.svelte';
   import { onMount } from 'svelte';
   import { app } from './lib/app.svelte';
   import Start from './views/Start.svelte';
@@ -7,6 +8,7 @@
   import Game from './views/Game.svelte';
   import Teams from './views/Teams.svelte';
   import Local from './views/Local.svelte';
+  import Settings from './views/Settings.svelte';
 
   const sourceUrl = import.meta.env.VITE_SOURCE_URL || 'https://github.com/hedgewars/hw';
 
@@ -21,9 +23,12 @@
   <div class="page">
     <header>
       <h1>Hedgewars</h1>
+      {#if app.screen !== 'settings'}
+        <button class="settings-link" onclick={() => app.open('settings')}>{t('Settings')}</button>
+      {/if}
       {#if app.client.state !== 'disconnected' && (app.tick, true)}
         <span class="who">{app.client.nick}</span>
-        <button onclick={() => app.client.disconnect()}>Disconnect</button>
+        <button onclick={() => app.client.disconnect()}>{t('Disconnect')}</button>
       {/if}
     </header>
     {#if app.error}
@@ -42,12 +47,14 @@
         <Teams />
       {:else if app.screen === 'local'}
         <Local />
+      {:else if app.screen === 'settings'}
+        <Settings />
       {/if}
     </main>
     <footer>
-      Hedgewars is free software (<a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
-        >GPL-2.0</a
-      >, data GFDL-1.2). <a href={sourceUrl}>Source code</a>
+      {t('Hedgewars is free software')} (<a
+        href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html">GPL-2.0</a
+      >, {t('data GFDL-1.2')}). <a href={sourceUrl}>{t('Source code')}</a>
     </footer>
   </div>
 {/if}

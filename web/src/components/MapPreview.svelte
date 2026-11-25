@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n.svelte';
   import { previews } from '../lib/app.svelte';
   import {
     PREVIEW_HEIGHT,
@@ -61,19 +62,24 @@
 
 <figure class="preview" class:loading aria-busy={loading}>
   {#if failed}
-    <div class="empty">No preview</div>
+    <div class="empty">{t('No preview')}</div>
   {:else if preview?.imageUrl}
-    <img src={preview.imageUrl} alt="Map preview" width={PREVIEW_WIDTH} height={PREVIEW_HEIGHT} />
+    <img
+      src={preview.imageUrl}
+      alt={t('Map preview')}
+      width={PREVIEW_WIDTH}
+      height={PREVIEW_HEIGHT}
+    />
   {:else}
     <canvas
       bind:this={canvas}
       width={PREVIEW_WIDTH}
       height={PREVIEW_HEIGHT}
-      aria-label="Map preview"
+      aria-label={t('Map preview')}
     ></canvas>
   {/if}
   {#if preview?.maxHedgehogs}
-    <figcaption>room for {preview.maxHedgehogs} hedgehogs</figcaption>
+    <figcaption>{t('room for {n} hedgehogs', { n: preview.maxHedgehogs })}</figcaption>
   {/if}
 </figure>
 

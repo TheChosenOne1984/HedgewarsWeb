@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n.svelte';
   import { app } from '../lib/app.svelte';
 
   const touchOnly =
@@ -14,14 +15,15 @@
 </script>
 
 {#if touchOnly}
-  <p class="panel">Hedgewars needs a keyboard and a mouse: please use a desktop browser.</p>
+  <p class="panel">{t('Hedgewars needs a keyboard and a mouse: please use a desktop browser.')}</p>
 {/if}
 
 <div class="start">
   <form class="panel" onsubmit={connect}>
-    <h2>Play online</h2>
+    <h2>{t('Play online')}</h2>
     <label
-      >Nickname <input
+      >{t('Nickname')}
+      <input
         bind:value={app.settings.nick}
         maxlength="40"
         required
@@ -29,17 +31,19 @@
       /></label
     >
     <details>
-      <summary>Server</summary>
-      <label>WebSocket URL <input bind:value={app.settings.server} /></label>
+      <summary>{t('Server')}</summary>
+      <label>{t('WebSocket URL')} <input bind:value={app.settings.server} /></label>
     </details>
-    <button class="primary" disabled={connecting}>{connecting ? 'Connecting…' : 'Connect'}</button>
+    <button class="primary" disabled={connecting}
+      >{connecting ? t('Connecting…') : t('Connect')}</button
+    >
   </form>
 
   <div class="panel">
-    <h2>Play offline</h2>
-    <p>Hotseat with friends on this computer, or against the computer.</p>
-    <button onclick={() => (app.screen = 'local')}>Local game</button>
-    <button onclick={() => (app.screen = 'teams')}>Edit teams</button>
+    <h2>{t('Play offline')}</h2>
+    <p>{t('Hotseat with friends on this computer, or against the computer.')}</p>
+    <button onclick={() => (app.screen = 'local')}>{t('Local game')}</button>
+    <button onclick={() => app.open('teams')}>{t('Edit teams')}</button>
   </div>
 </div>
 

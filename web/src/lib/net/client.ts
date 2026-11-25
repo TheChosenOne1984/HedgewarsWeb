@@ -2,6 +2,7 @@
 // room config and the engine message relay of a network game.
 // Port of the relevant parts of frontend-qt6/net/newnetclient.cpp.
 
+import { t } from '../i18n.svelte';
 import {
   clientToRaw,
   gameCfgToProtocol,
@@ -240,7 +241,7 @@ export class NetClient {
       for (const raw of this.reader.feed(text)) this.receive(raw);
     };
     ws.onclose = () => this.closed('Connection closed');
-    ws.onerror = () => this.emit('error', 'Connection error');
+    ws.onerror = () => this.emit('error', t('Connection error'));
   }
 
   disconnect(reason = 'bye') {
@@ -385,7 +386,10 @@ export class NetClient {
     try {
       msg = parseServerMessage(raw);
     } catch (e) {
-      this.emit('error', `Unexpected message from server: ${(e as Error).message}`);
+      this.emit(
+        'error',
+        t('Unexpected message from server: {text}', { text: (e as Error).message }),
+      );
       return;
     }
     this.handle(msg);
@@ -405,7 +409,7 @@ export class NetClient {
         return;
       case 'AskPassword':
         // registered accounts are not supported yet
-        this.emit('error', 'This nickname is registered. Please choose another one.');
+        this.emit('error', t('This nickname is registered. Please choose another one.'));
         this.disconnect('registered nick');
         return;
       case 'Ping':

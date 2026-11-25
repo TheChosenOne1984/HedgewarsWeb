@@ -287,3 +287,30 @@ Format: what was decided, why, and what was rejected.
   in sync.
 - The real Qt frontend is not part of the automated test (no GUI automation); a manual test with
   it is listed under open items.
+
+### D29: Map preview
+- Generated maps are previewed like `HWMap` does: a second engine module instance without a canvas
+  runs `--landpreview` with the map parameters and answers with 256×128 alpha values plus the
+  hedgehog limit. The preview path is synchronous (no main loop, no AI), so one instance runs any
+  number of previews in a row (unlike games, D27); calls are queued and results cached. Only the
+  core pack is loaded into it.
+- Fixed maps use their `preview.png`, published by `make-packs.py` as `packs/previews/<map>.png`
+  so that choosing a map does not download its pack.
+- The new map generators place small maps at the bottom centre of the preview; the FPC engine does
+  the same, so this is upstream behaviour.
+
+### D30: Languages
+- The client's texts are translated gettext style (`src/lib/i18n.svelte.ts`, English text as key,
+  `{name}` placeholders); English and German for now. A test checks that every text passed to
+  `t()` and every key binding label has a German entry and that placeholders match.
+- The language comes from the settings or the browser; the engine gets `--locale <lang>.txt` and
+  the `locale/<lang>` pack, so its own texts and the Lua `loc()` strings follow.
+
+### D31: Settings and key bindings
+- Volume, sound and music go to the engine as before (`--volume`, `--nosound`, `--nomusic`).
+- Key bindings use the engine's existing mechanism: it reads `[Binds]` from `settings.ini` in its
+  user directory (`uInputHandler.loadBinds`, `dbind`). The client writes that file into the engine's
+  file system before each game, with only the bindings that differ from the engine defaults
+  (rebinding removes an action's old key). Actions and labels follow `frontend-qt6/binds.cpp`;
+  browser `KeyboardEvent.code` (physical keys, like SDL scancodes) maps to the names in
+  `Data/misc/keys.csv`. No engine change.

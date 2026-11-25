@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n.svelte';
   import { app } from '../lib/app.svelte';
 
   let { scope }: { scope: 'lobby' | 'room' } = $props();
@@ -23,15 +24,15 @@
     {#each lines as l, i (i)}
       <div class={l.kind}>
         {#if l.kind === 'chat'}<b>{l.nick}:</b> {l.text}
-        {:else if l.kind === 'join'}<i>{l.nick} {l.text}</i>
-        {:else if l.kind === 'leave'}<i>{l.nick} left{l.text ? ` (${l.text})` : ''}</i>
+        {:else if l.kind === 'join'}<i>{l.nick} {t(l.text)}</i>
+        {:else if l.kind === 'leave'}<i>{l.nick} {t('has left')}{l.text ? ` (${l.text})` : ''}</i>
         {:else}<i>{l.nick ? `${l.nick}: ` : ''}{l.text}</i>{/if}
       </div>
     {/each}
   </div>
   <form onsubmit={send}>
-    <input bind:value={text} placeholder="Say something…" maxlength="400" />
-    <button>Send</button>
+    <input bind:value={text} placeholder={t('Say something…')} maxlength="400" />
+    <button>{t('Send')}</button>
   </form>
 </div>
 
