@@ -56,14 +56,22 @@ impl WsConfig {
     /// The client's address: the peer itself, or for a trusted proxy the
     /// rightmost X-Forwarded-For entry that is not a trusted proxy.
     pub fn client_ip(&self, peer: IpAddr, forwarded_for: Option<&str>) -> IpAddr {
-        if !self.trusted_proxies.contains(&peer) {
+        // a dual-stack listener sees IPv4 peers as ::ffff:a.b.c.d
+        let peer = crate::utils::normalize_ip(peer);
+        let trusted = |ip: &IpAddr| {
+            self.trusted_proxies
+                .iter()
+                .any(|p| crate::utils::normalize_ip(*p) == *ip)
+        };
+        if !trusted(&peer) {
             return peer;
         }
         forwarded_for
             .into_iter()
             .flat_map(|header| header.rsplit(','))
             .filter_map(|entry| entry.trim().parse::<IpAddr>().ok())
-            .find(|ip| !self.trusted_proxies.contains(ip))
+            .map(crate::utils::normalize_ip)
+            .find(|ip| !trusted(ip))
             .unwrap_or(peer)
     }
 }
@@ -240,6 +248,9 @@ mod tests {
         // trusted proxy: rightmost untrusted entry wins, spoofed left entries ignored
         assert_eq!(c.client_ip(proxy, Some("1.2.3.4, 203.0.113.7")), client);
         assert_eq!(c.client_ip(proxy, Some("203.0.113.7, 10.0.0.3")), client);
+        // the proxy as a dual-stack listener sees it (IPv4-mapped IPv6)
+        let mapped: IpAddr = "::ffff:10.0.0.2".parse().unwrap();
+        assert_eq!(c.client_ip(mapped, Some("203.0.113.7")), client);
         // trusted proxy without a usable header
         assert_eq!(c.client_ip(proxy, None), proxy);
         assert_eq!(c.client_ip(proxy, Some("garbage")), proxy);

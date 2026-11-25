@@ -5,7 +5,7 @@ import { DEFAULT_AMMO_SETS, DEFAULT_SCHEMES } from './engine/frontend-data.gener
 import { PreviewService, type PreviewParams } from './engine/preview';
 import { NetClient, type ChatLine, type RoomSettings } from './net/client';
 import type { TeamInfo } from './protocol/messages';
-import { setLocale, type Locale } from './i18n.svelte';
+import { setLocale, t, type Locale } from './i18n.svelte';
 import { load, save } from './storage';
 
 export type Screen = 'start' | 'lobby' | 'room' | 'game' | 'teams' | 'local' | 'settings';
@@ -158,10 +158,18 @@ class AppState {
     c.on('chat', (line) => {
       this.chat = [...this.chat.slice(-199), line];
     });
-    c.on('error', (e) => (this.error = e));
+    c.on('error', (e) => {
+      // the server limits reconnects per address; failed attempts do not
+      // count, so try again until it lets us in
+      if (e === 'Reconnected too fast') this.retryConnect();
+      else this.error = e;
+    });
     c.on('state', (s) => {
-      if (s === 'lobby') this.screen = 'lobby';
-      else if (s === 'room') this.screen = 'room';
+      if (s === 'lobby') {
+        this.stopRetry();
+        this.error = '';
+        this.screen = 'lobby';
+      } else if (s === 'room') this.screen = 'room';
       else if (s === 'game') this.screen = 'game';
       else if (s === 'disconnected' && ['lobby', 'room', 'game'].includes(this.screen))
         this.screen = 'start';
@@ -205,7 +213,40 @@ class AppState {
     this.screen = s === 'lobby' || s === 'room' ? (connected ? s : 'start') : s;
   }
 
+  private retryTimer: ReturnType<typeof setInterval> | null = null;
+
+  private retryConnect() {
+    this.stopRetry();
+    let seconds = 15;
+    const show = () =>
+      (this.error = t(
+        'Too many connections from your address in a short time. Connecting again in {n} s…',
+        { n: seconds },
+      ));
+    show();
+    this.retryTimer = setInterval(() => {
+      seconds--;
+      if (seconds > 0) show();
+      else {
+        this.stopRetry();
+        this.client.connect(this.settings.server, this.settings.nick || 'Guest');
+      }
+    }, 1000);
+  }
+
+  private stopRetry() {
+    if (this.retryTimer) clearInterval(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  /** close the error notice (and stop retrying to connect) */
+  dismissError() {
+    this.stopRetry();
+    this.error = '';
+  }
+
   connect() {
+    this.stopRetry();
     this.error = '';
     this.chat = [];
     this.saveSettings();

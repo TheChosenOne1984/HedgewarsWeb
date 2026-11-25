@@ -50,3 +50,10 @@ Bans and flood control work per client address. Without `--trusted-proxy` every
 web client would appear with the proxy's address, so always configure it when a
 proxy is used. `X-Forwarded-For` is only honoured for the listed proxies; the
 rightmost address that is not a trusted proxy is used.
+
+## Reconnect limit
+
+The server refuses a client whose address connected more than twice in 30 s,
+three times in 2 min or five times in 10 min ("Reconnected too fast"; refused
+attempts do not count). `--reconnect-limit-exempt=IP` (repeatable) lifts the
+limit for an address, e.g. a LAN or a test setup where all players share one.

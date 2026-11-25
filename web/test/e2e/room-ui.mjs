@@ -58,7 +58,7 @@ try {
   await alice.fill('input[placeholder="New room name"]', 'ui test');
   await alice.click('form button.primary');
   await alice.waitForSelector('.room');
-  await alice.waitForTimeout(31000); // the server throttles reconnects per address
+  // (the test stack exempts the test host from the server's reconnect limit)
   const bob = await player('bob');
   await bob.waitForSelector('tr:has-text("ui test") button');
   await bob.click('tr:has-text("ui test") button');

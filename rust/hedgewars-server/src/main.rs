@@ -35,6 +35,7 @@ async fn main() -> tokio::io::Result<()> {
         opts.optmulti("", "ws-origin", "allowed Origin of WebSocket clients (repeatable; default: any)", "ORIGIN");
         opts.optmulti("", "trusted-proxy", "trust X-Forwarded-For from this reverse proxy address (repeatable)", "IP");
     }
+    opts.optmulti("", "reconnect-limit-exempt", "do not limit reconnects from this address (repeatable; LAN, tests)", "IP");
     opts.optflag("h", "help", "help");
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -65,7 +66,19 @@ async fn main() -> tokio::io::Result<()> {
         }
     };
 
-    let builder = NetworkLayerBuilder::default().with_listener(server);
+    let mut reconnect_exempt = vec![];
+    for ip in matches.opt_strs("reconnect-limit-exempt") {
+        match ip.parse() {
+            Ok(ip) => reconnect_exempt.push(ip),
+            Err(e) => {
+                println!("Invalid --reconnect-limit-exempt {}: {}", ip, e);
+                return Ok(());
+            }
+        }
+    }
+    let builder = NetworkLayerBuilder::default()
+        .with_listener(server)
+        .with_reconnect_exempt(reconnect_exempt);
     #[cfg(feature = "ws-connections")]
     let builder = match matches.opt_str("ws-port").map(|s| u16::from_str(&s)) {
         None => builder,

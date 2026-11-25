@@ -10,6 +10,9 @@ services:
       - --ws-port=46632
       - --ws-origin=https://localhost:8443
       - --trusted-proxy=172.30.0.10
+      # browsers on the test host reach the server through the network gateway;
+      # do not limit their reconnects (several tabs, reloads)
+      - --reconnect-limit-exempt=172.30.0.1
     ports: !override
       - "46731:46631"
 networks:

@@ -105,6 +105,8 @@ const DE: Record<string, string> = {
   joined: 'ist da',
   'joined the room': 'hat den Raum betreten',
   'Connection error': 'Verbindungsfehler',
+  'Too many connections from your address in a short time. Connecting again in {n} s…':
+    'Zu viele Verbindungen von deiner Adresse in kurzer Zeit. Neuer Versuch in {n} s…',
   'This nickname is registered. Please choose another one.':
     'Dieser Spitzname ist registriert. Bitte wähle einen anderen.',
   'Unexpected message from server: {text}': 'Unerwartete Nachricht vom Server: {text}',

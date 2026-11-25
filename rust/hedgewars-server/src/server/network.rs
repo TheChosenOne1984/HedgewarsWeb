@@ -587,6 +587,7 @@ pub struct NetworkLayerBuilder {
     tls_acceptor: Option<TlsAcceptor>,
     clients_capacity: usize,
     rooms_capacity: usize,
+    reconnect_exempt: Vec<std::net::IpAddr>,
 }
 
 impl Default for NetworkLayerBuilder {
@@ -594,6 +595,7 @@ impl Default for NetworkLayerBuilder {
         Self {
             clients_capacity: 1024,
             rooms_capacity: 512,
+            reconnect_exempt: vec![],
             listener: None,
             #[cfg(feature = "ws-connections")]
             ws: None,
@@ -609,6 +611,14 @@ impl NetworkLayerBuilder {
     pub fn with_listener(self, listener: TcpListener) -> Self {
         Self {
             listener: Some(listener),
+            ..self
+        }
+    }
+
+    /// Addresses whose reconnects are not limited
+    pub fn with_reconnect_exempt(self, reconnect_exempt: Vec<std::net::IpAddr>) -> Self {
+        Self {
+            reconnect_exempt,
             ..self
         }
     }
@@ -639,7 +649,10 @@ impl NetworkLayerBuilder {
     }
 
     pub fn build(self) -> NetworkLayer {
-        let server_state = ServerState::new(self.clients_capacity, self.rooms_capacity);
+        let mut server_state = ServerState::new(self.clients_capacity, self.rooms_capacity);
+        for ip in self.reconnect_exempt {
+            server_state.anteroom.joins_monitor.exempt(ip);
+        }
 
         let clients = Slab::with_capacity(self.clients_capacity);
         let (update_tx, update_rx) = unbounded_channel();

@@ -33,7 +33,7 @@
     </header>
     {#if app.error}
       <div class="error" role="alert">
-        {app.error} <button onclick={() => (app.error = '')}>×</button>
+        {app.error} <button onclick={() => app.dismissError()}>×</button>
       </div>
     {/if}
     <main>

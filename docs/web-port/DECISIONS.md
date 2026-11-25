@@ -326,3 +326,13 @@ Format: what was decided, why, and what was rejected.
   with zstd/gzip). LTO was not enabled: frame times are at the vsync limit already, and it would
   widen the room for compiler differences the determinism gate would have to catch.
   `--profiling-funcs` keeps function names in the module for readable crash traces.
+
+### D33: Client addresses behind the proxy, reconnect limit
+- Bug fixed: the server's listeners are dual-stack, so the proxy's IPv4 address arrived as
+  `::ffff:172.30.0.10` and never matched `--trusted-proxy`; every web client got the proxy's
+  address, so all of them shared one reconnect limit and one ban entry. Addresses are normalised
+  before the comparison (test with a mapped address).
+- The server's reconnect limit (per address: 2 in 30 s, 3 in 2 min, 5 in 10 min; refused
+  attempts do not count) stays as upstream. The web client explains it and reconnects by itself
+  every 15 s. A new server option `--reconnect-limit-exempt=IP` lifts the limit for chosen
+  addresses; the test stack uses it for the test host, production does not.
