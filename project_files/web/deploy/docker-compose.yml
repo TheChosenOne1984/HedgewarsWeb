@@ -40,6 +40,8 @@ services:
       - --ws-origin=https://${DOMAIN:-localhost}
       - --ws-origin=http://${DOMAIN:-localhost}
       - --trusted-proxy=172.30.0.10
+      # the health check connects from inside the container every 30 s
+      - --reconnect-limit-exempt=127.0.0.1
     environment:
       RUST_LOG: info
     ports:
