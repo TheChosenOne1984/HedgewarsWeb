@@ -103,8 +103,15 @@ RUN cd web && npm ci --no-fund --no-audit --silent \
     && scripts/stage-assets.sh /build/web /build/stage/usr/local/share/hedgewars/Data dist \
     && cp -r dist /srv-site
 
+# compress once here instead of on every request (Caddy: precompressed)
+FROM site-build AS site-compress
+RUN apt-get update -qq && apt-get install -y --no-install-recommends zstd > /dev/null \
+    && web/scripts/precompress.sh /srv-site
+
 FROM caddy:2.8.4-alpine AS site
-COPY --from=site-build /srv-site /srv
+# htpasswd: bcrypt with a cost that suits small servers (see start.sh)
+RUN apk add --no-cache apache2-utils
+COPY --from=site-compress /srv-site /srv
 COPY project_files/web/deploy/site/Caddyfile project_files/web/deploy/site/auth-on.caddy \
      project_files/web/deploy/site/auth-off.caddy /etc/caddy/
 COPY project_files/web/deploy/site/start.sh /usr/local/bin/hw-site-start

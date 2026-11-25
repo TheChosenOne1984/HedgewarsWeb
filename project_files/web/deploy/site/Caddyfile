@@ -5,7 +5,6 @@
 	# optional basic auth (BASIC_AUTH_PASSWORD, see start.sh)
 	import /etc/caddy/auth-{$HW_AUTH:off}.caddy
 
-	encode zstd gzip
 
 	header {
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss: ws:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
@@ -25,5 +24,8 @@
 	header @revalidate Cache-Control "no-cache"
 
 	root * /srv
-	file_server
+	# compressed once at build time (web/scripts/precompress.sh)
+	file_server {
+		precompressed zstd gzip
+	}
 }

@@ -60,7 +60,9 @@ it takes several minutes.
 | `/packs/*.hwpack` | asset packs (content-addressed) | immutable |
 | `/ws` | WebSocket to the game server | — |
 
-Responses are compressed (zstd, gzip); `.wasm` is served as
+Files are compressed once when the image is built (zstd -19, gzip -9;
+`web/scripts/precompress.sh`) and served as they are, so the server spends no
+CPU on compression; PNG/OGG-heavy packs stay plain. `.wasm` is served as
 `application/wasm`. The Content-Security-Policy allows WebAssembly
 (`wasm-unsafe-eval`) but no `eval`.
 

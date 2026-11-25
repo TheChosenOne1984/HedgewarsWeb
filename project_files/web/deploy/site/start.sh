@@ -4,7 +4,9 @@
 set -eu
 if [ -n "${BASIC_AUTH_PASSWORD:-}" ]; then
     export BASIC_AUTH_USER="${BASIC_AUTH_USER:-hedgewars}"
-    BASIC_AUTH_HASH="$(caddy hash-password --plaintext "$BASIC_AUTH_PASSWORD")"
+    # bcrypt cost 10 (caddy hash-password uses 14: 16x slower, about 1.5 s of
+    # CPU per uncached check on a small server)
+    BASIC_AUTH_HASH="$(htpasswd -nbBC 10 x "$BASIC_AUTH_PASSWORD" | cut -d: -f2 | tr -d '\n')"
     export BASIC_AUTH_HASH
     # session cookie for the game connection (see auth-on.caddy)
     HW_WS_TOKEN="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
