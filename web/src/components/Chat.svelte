@@ -19,10 +19,10 @@
   }
 </script>
 
-<div class="chat panel">
+<div class="chatbox panel">
   <div class="log" bind:this={log}>
     {#each lines as l, i (i)}
-      <div class={l.kind}>
+      <div class="line {l.kind}">
         {#if l.kind === 'chat'}<b>{l.nick}:</b> {l.text}
         {:else if l.kind === 'join'}<i>{l.nick} {t(l.text)}</i>
         {:else if l.kind === 'leave'}<i>{l.nick} {t('has left')}{l.text ? ` (${l.text})` : ''}</i>
@@ -37,7 +37,7 @@
 </div>
 
 <style>
-  .chat {
+  .chatbox {
     display: flex;
     flex-direction: column;
     min-height: 220px;
@@ -49,10 +49,10 @@
     font-size: 14px;
     line-height: 1.4;
   }
-  .server,
-  .notice,
-  .join,
-  .leave {
+  .line.server,
+  .line.notice,
+  .line.join,
+  .line.leave {
     color: var(--muted);
   }
   form {

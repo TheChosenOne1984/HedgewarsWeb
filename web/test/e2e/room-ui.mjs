@@ -80,6 +80,10 @@ try {
   await alice.press('.chat input', 'Enter');
   await until(alice, (v) => v.chat.some((l) => l.includes('hello from alice')), 'own chat line');
   await until(bob, (v) => v.chat.some((l) => l.includes('hello from alice')), 'chat reaches bob');
+  await bob.fill('.chat input', 'hi alice');
+  await bob.press('.chat input', 'Enter');
+  await until(alice, (v) => v.chat.some((l) => l.includes('hi alice')), 'chat reaches alice');
+  await alice.locator('.chatbox').screenshot({ path: `${outDir}/room-ui-chat.png` });
 
   // the room master changes the colour of bob's team
   const before = (await view(alice)).teams[1].colour;
