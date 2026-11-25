@@ -1,3 +1,38 @@
+> **Hedgewars Web** — this repository is a fork of
+> [Hedgewars](https://hedgewars.org/) ([hedgewars/hw](https://github.com/hedgewars/hw))
+> that runs the game in a web browser. It is an unofficial port and is not
+> affiliated with or endorsed by the Hedgewars project.
+>
+> **Credit:** the game itself — its design, engine, artwork, music, sounds,
+> maps, missions and translations — is the work of the Hedgewars developers and
+> community (see `CREDITS` and the licence section below). This fork adds the
+> web port on top of their work:
+>
+> - the engine compiled to WebAssembly (via pas2c), behaving exactly like the
+>   desktop engine, so browser and desktop players can play online together;
+> - a web client (lobby, rooms, local games, team editor) in `web/`;
+> - WebSocket support for the game server (`rust/hedgewars-server`);
+> - a Docker Compose deployment.
+>
+> **Run your own server:** see
+> [`project_files/web/deploy/README.md`](project_files/web/deploy/README.md).
+> Ready-made images are published to the GitHub Container Registry for every
+> release (tags `<hedgewars version>-web.<n>`, e.g. `1.1.0-web.3`).
+>
+> **Details:** design notes and decisions in [`docs/web-port/`](docs/web-port/);
+> the changes to existing Hedgewars code are kept as a small patch series
+> ([`docs/web-port/UPSTREAM.md`](docs/web-port/UPSTREAM.md)).
+>
+> Based on Hedgewars 1.1.0-dev (network protocol 60): desktop clients of the
+> same development version can join; released versions such as 1.0.x cannot.
+> Please report problems with the web port in this repository, not to the
+> Hedgewars bug tracker. Same licences as Hedgewars: code GPL-2.0, data
+> GFDL-1.2 (`COPYING`).
+>
+> *The original Hedgewars README follows.*
+
+---
+
 Hedgewars - a turn-based strategy game
 ======================================
 [![Build Status](https://travis-ci.org/hedgewars/hw.svg)](https://travis-ci.org/hedgewars/hw)
