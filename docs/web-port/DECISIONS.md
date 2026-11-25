@@ -219,3 +219,71 @@ Format: what was decided, why, and what was rejected.
 - Keyboard input in a hotseat game works (`KEYTEST=1`: the active hedgehog walks and jumps).
 - Not yet verified automatically: mouse aiming with pointer lock, fullscreen and audible sound
   (they need a real browser session).
+
+## M2: Server WebSocket support
+
+### D23: WebSocket as one more ClientStream
+- Feature `ws-connections` (tokio-tungstenite 0.24). `ClientStream::Ws` wraps the WebSocket in a
+  small adapter (`server/websocket.rs`) that turns binary or text messages back into a byte stream,
+  so the protocol decoder is unchanged. Rejected: `ws_stream_tungstenite` (the adapter is 60 lines
+  and avoids another dependency).
+- Separate listener (`--ws-port`). The listener and every handshake run in their own tasks with a
+  10 s timeout and hand finished connections to the network layer through a channel, so a slow
+  client cannot block the accept loop (the TLS branch upstream still accepts inline). This also
+  avoids doubling the feature-dependent `select!` blocks.
+- `--ws-origin` (repeatable) is an Origin allowlist; empty allows any origin (logged as a warning).
+- `--trusted-proxy` (repeatable): only for these peers the client address is taken from
+  `X-Forwarded-For` (rightmost entry that is not a trusted proxy), because bans, flood control and
+  the reconnect throttle work per address.
+- `NetworkClient::write` now flushes after `write_all`: TLS and WebSocket streams buffer until
+  flushed (no-op for TCP).
+- Note for tests: the server allows at most 2 connections per address in 30 s and 3 in 2 min,
+  loopback included; tests with several local clients have to space their connections.
+
+## M3: Web frontend
+
+### D24: Svelte 5 + TypeScript + Vite
+- Decided in M3 as the plan asked: Svelte compiles to small, dependency-free code (the client is
+  83 KB of JavaScript, 29 KB gzipped) and fits a state-heavy app UI. Lit would have meant more
+  hand-written state plumbing. All versions are pinned (`package.json` exact versions + lock file).
+
+### D25: Protocol client from golden vectors
+- `src/lib/protocol/messages.ts` mirrors the Rust enums and their serialisation/parsing.
+- The Rust crate exports golden vectors (every client and server message variant with its raw
+  text, `src/tests/golden.rs`); the web tests check the port against them in both directions, and
+  CI fails when the committed vectors are outdated. The crate's own explicit test vectors are few,
+  so generated vectors from the reference implementation are the stronger source.
+
+### D26: Engine config builder and frontend data
+- `src/lib/engine/config.ts` is a 1:1 port of `commonConfig`, `getFullConfig` and
+  `teamGameConfig`. Schemes, weapon sets and team colours are extracted from the Qt sources by
+  `web/scripts/extract-frontend-data.py`, not copied by hand.
+- Deviation: the plan asked for unit tests against outputs captured from the Qt6 frontend. Driving
+  the Qt GUI headlessly to capture configs was not feasible without UI automation. Instead:
+  explicit expectations derived from the Qt code in `test/config.test.ts`, a game played to the end
+  by the FPC engine with a config from the builder (`scripts/dump-config.ts` +
+  `hwipc.py --config-b64`), and the mixed online game test below, where native and web engines
+  check each other's per-turn checksums.
+- Network details that matter for sync and were checked against the server: teams keep the
+  server's order; the server assigns colour and hedgehog number (`TEAM_COLOR`, `HH_NUM`) also for
+  the owner; map parameters arrive as `FULLMAPCONFIG`; the room master has to publish the complete
+  config (`GameCFGWidget::fullNetConfig`), the server only has placeholders; static maps are sent as
+  `MAP`, generated maps only through `MAPGEN`; there is no `JOINING` for the own client.
+- Team owner hashes need MD5 (`QCryptographicHash::Md5` of the nick); WebCrypto has none, so the
+  client has a small tested implementation.
+
+### D27: Game session and engine relay
+- `src/lib/game/session.ts` filters engine output like `HWGame::ParseMessage` (chat, end, errors
+  and stats handled locally, everything else relayed as `EM`), batches it per engine frame, and
+  forwards server `EM`, `ROUND_FINISHED` and room chat into the engine.
+- Every game uses a fresh engine module instance; the engine's globals are not meant to be reused.
+
+### D28: Mixed online game test
+- `project_files/web/tools/desktop-bot.py` is a TCP client that plays network games with the
+  native FPC engine, relaying engine messages like `frontend-qt6`. `project_files/web/ci/
+  mixed-game.sh` runs the server, the desktop client and two Chromium pages (Playwright) that play
+  one online game with three AI teams. Engines in network games compare the per-turn checksums of
+  remote turns and abort on a desync, so a finished game proves that native and web engines stayed
+  in sync.
+- The real Qt frontend is not part of the automated test (no GUI automation); a manual test with
+  it is listed under open items.

@@ -2,6 +2,8 @@
 # Web frontend checks: golden protocol vectors are current, lint, types, tests.
 # Run inside the toolchain container (web image) from the repository root.
 set -eu
+echo "== protocol version: engine, server and web client agree"
+python3 -I project_files/web/ci/protocol-check.py
 echo "== protocol golden vectors (from rust/hedgewars-network-protocol)"
 (cd rust && HW_GOLDEN_OUT=/tmp/protocol-golden.json \
     cargo test -q -p hedgewars-network-protocol export_golden -- --ignored > /dev/null)

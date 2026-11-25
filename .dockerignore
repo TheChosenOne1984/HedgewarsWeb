@@ -1,0 +1,9 @@
+# keep the Docker build context small (project_files/web/docker/Dockerfile)
+.git
+.cache
+build*
+rust/target
+web/node_modules
+web/dist
+**/*.o
+**/*.ppu

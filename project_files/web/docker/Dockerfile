@@ -73,3 +73,43 @@ RUN mkdir -p /tmp/physfs && cd /tmp/physfs \
     && cmake --build build && cmake --install build \
     && cd / && rm -rf /tmp/physfs \
     && chmod -R a+rwX ${EMSDK}/upstream/emscripten/cache
+
+
+# ---------------------------------------------------------------------------
+# Production images (build context: repository root)
+#   docker build -f project_files/web/docker/Dockerfile --target site .
+#   docker build -f project_files/web/docker/Dockerfile --target server .
+# See project_files/web/deploy/.
+
+FROM web AS site-build
+ARG SOURCE_URL=https://github.com/hedgewars/hw
+COPY . /src
+WORKDIR /src
+RUN emcmake cmake -S . -B /build/web -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_ENGINE_JS=1 \
+        -DPHYSFS_LIBRARY=/opt/wasm/lib/libphysfs.a -DPHYSFS_INCLUDE_DIR=/opt/wasm/include \
+        -DRust_CARGO_TARGET=wasm32-unknown-emscripten -DNOVERSIONINFOUPDATE=1 \
+    && ninja -C /build/web hwengine
+# the data set the desktop build installs (no source files), for the packs
+RUN cmake -S . -B /build/data -G Ninja -DNOSERVER=1 -DNOVIDEOREC=1 -DNOVERSIONINFOUPDATE=1 > /dev/null \
+    && DESTDIR=/build/stage cmake --install /build/data/share > /dev/null
+RUN cd web && npm ci --no-fund --no-audit --silent \
+    && VITE_SOURCE_URL=${SOURCE_URL} npx vite build \
+    && scripts/stage-assets.sh /build/web /build/stage/usr/local/share/hedgewars/Data /srv-site
+
+FROM caddy:2.8.4-alpine AS site
+COPY --from=site-build /srv-site /srv
+COPY project_files/web/deploy/Caddyfile /etc/caddy/Caddyfile
+
+
+FROM native AS server-build
+COPY rust /src/rust
+WORKDIR /src/rust
+RUN cargo build --release -p hedgewars-server --features ws-connections
+
+FROM ubuntu:${UBUNTU_VERSION} AS server
+RUN useradd --system --home /var/lib/hedgewars-server --create-home hedgewars
+COPY --from=server-build /src/rust/target/release/hedgewars-server /usr/local/bin/hedgewars-server
+USER hedgewars
+WORKDIR /var/lib/hedgewars-server
+EXPOSE 46631 46632
+ENTRYPOINT ["hedgewars-server"]
