@@ -9,8 +9,16 @@
   import { previewParamsFromRoom } from '../lib/game/session';
 
   let room = $derived((app.tick, app.client.room));
-  let teams = $derived((app.tick, [...(app.client.room?.teams ?? [])]));
-  let players = $derived((app.tick, [...(app.client.room?.players ?? [])]));
+  // The client mutates its room state in place; copy it on every change so
+  // that keyed {#each} blocks see new values (same object = no update).
+  let teams = $derived((app.tick, (app.client.room?.teams ?? []).map((t) => ({ ...t }))));
+  let players = $derived(
+    (app.tick,
+    (app.client.room?.players ?? []).map((nick) => {
+      const flags = app.client.players.get(nick)?.flags;
+      return { nick, ready: flags?.has('r') ?? false, master: flags?.has('h') ?? false };
+    })),
+  );
   let isMaster = $derived((app.tick, app.client.room?.isMaster ?? false));
   let ready = $derived(
     (app.tick, app.client.players.get(app.client.nick)?.flags.has('r') ?? false),
@@ -44,7 +52,6 @@
   }
 
   const color = (i: number) => '#' + (TEAM_COLORS[i] ?? 0).toString(16).padStart(6, '0');
-  const flag = (nick: string, f: string) => app.client.players.get(nick)?.flags.has(f) ?? false;
   const cfg = (k: string) => (config.get(k) ?? [])[0] ?? '';
 </script>
 
@@ -106,10 +113,10 @@
     <section class="panel">
       <h3>{tr('Players')}</h3>
       <ul>
-        {#each players as p (p)}
+        {#each players as p (p.nick)}
           <li>
-            {flag(p, 'r') ? '✔' : '·'}
-            {p}{flag(p, 'h') ? ` (${tr('room master')})` : ''}
+            {p.ready ? '✔' : '·'}
+            {p.nick}{p.master ? ` (${tr('room master')})` : ''}
           </li>
         {/each}
       </ul>

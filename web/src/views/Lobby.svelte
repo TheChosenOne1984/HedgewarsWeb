@@ -6,7 +6,10 @@
   let roomName = $state('');
   let rooms = $derived((app.tick, [...app.client.rooms]));
   let players = $derived(
-    (app.tick, [...app.client.players.values()].sort((a, b) => a.nick.localeCompare(b.nick))),
+    (app.tick,
+    [...app.client.players.values()]
+      .map((p) => ({ nick: p.nick, flags: new Set(p.flags) }))
+      .sort((a, b) => a.nick.localeCompare(b.nick))),
   );
 
   function create(e: Event) {

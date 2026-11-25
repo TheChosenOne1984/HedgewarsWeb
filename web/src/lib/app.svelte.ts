@@ -172,9 +172,11 @@ class AppState {
     this.settings = { ...this.settings, ...(await load<Partial<Settings>>('settings', {})) };
     setLocale(this.settings.locale || undefined);
     if (new URLSearchParams(location.search).get('server')) this.settings.server = defaultServer();
+    // team names must be unique in a room: give the first-run teams a number
+    const n = 100 + Math.floor(Math.random() * 900);
     this.teams = await load<TeamInfo[]>('teams', [
-      newTeam('Hedgehogs'),
-      { ...newTeam('Bots'), difficulty: 3 },
+      newTeam(`Hedgehogs ${n}`),
+      { ...newTeam(`Bots ${n}`), difficulty: 3 },
     ]);
     try {
       this.catalog = (await (await fetch(ASSETS.packs + 'catalog.json')).json()) as Catalog;

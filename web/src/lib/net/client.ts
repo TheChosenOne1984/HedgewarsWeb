@@ -266,6 +266,8 @@ export class NetClient {
   // lobby
   chat(text: string) {
     this.send({ type: 'Chat', args: [text] });
+    // the server does not echo our own chat; show it like the Qt frontend does
+    this.chatLine(this.nick, text);
   }
   createRoom(name: string, password: string | null = null) {
     this.pendingRoomName = name;
@@ -446,7 +448,9 @@ export class NetClient {
       case 'Warning':
       case 'Error':
         this.chatLine('', msg.args[0], 'notice');
-        if (msg.type === 'Error') this.emit('error', msg.args[0]);
+        // errors and warnings answer something the player did (a rejected
+        // team, a game that cannot start): show them, not only in the chat
+        if (msg.type !== 'Notice') this.emit('error', msg.args[0]);
         return;
       case 'ClientFlags': {
         const [spec, nicks] = msg.args;

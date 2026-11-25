@@ -22,7 +22,8 @@ const types = {
 const server = http
   .createServer((req, res) => {
     let file = path.join(dist, decodeURIComponent(new URL(req.url, 'http://x').pathname));
-    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
+    if (fs.existsSync(file) && fs.statSync(file).isDirectory())
+      file = path.join(file, 'index.html');
     if (!file.startsWith(dist) || !fs.existsSync(file)) {
       res.writeHead(404);
       res.end();
