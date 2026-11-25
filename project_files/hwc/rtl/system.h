@@ -147,7 +147,13 @@ string255   fpcrtl_paramStr(int i);
 int         fpcrtl_UTF8ToUnicode(PWideChar dest, PChar src, SizeInt maxLen);
 
 // #define     fpcrtl_halt(t)                                  assert(0)
+#ifdef __EMSCRIPTEN__
+// the web engine reports its end to JavaScript first (rtl/web.c)
+void        hw_web_halt(int code);
+#define     fpcrtl_halt(t)                                  hw_web_halt(t)
+#else
 #define     fpcrtl_halt(t)                                  exit(t)
+#endif
 
 #define     fpcrtl_Load_GL_VERSION_2_0()                    1
 

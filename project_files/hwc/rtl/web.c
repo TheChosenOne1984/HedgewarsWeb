@@ -98,6 +98,16 @@ EM_JS(void, hw_web_engine_exit, (int code), {
         Module.onEngineExit(code);
 });
 
+/* halt(): stop the browser-driven main loop and tell JavaScript before
+ * exiting. While the main loop runs, Emscripten keeps the runtime alive and
+ * would not call Module.onExit for exit(). */
+void hw_web_halt(int code)
+{
+    emscripten_cancel_main_loop();
+    hw_web_engine_exit(code);
+    exit(code);
+}
+
 /* Campaign ('V') and mission ('v') variables: the frontend keeps them (it
  * receives the "V!"/"v!" save messages over IPC) and answers synchronously
  * through Module.getEngineVar(kind, name). The value is written to a Pascal

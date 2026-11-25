@@ -48,7 +48,11 @@
 
   onMount(() => {
     const host = new EngineHost(ASSETS.engine, ASSETS.packs, canvas);
-    host.onLog = (line) => (log = [...log.slice(-300), line]);
+    const echo = new URLSearchParams(location.search).has('debug');
+    host.onLog = (line) => {
+      log = [...log.slice(-300), line];
+      if (echo) console.log(line);
+    };
     const session = new GameSession(
       host,
       {

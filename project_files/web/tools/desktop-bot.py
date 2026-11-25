@@ -210,8 +210,13 @@ class Bot:
         srv.listen(1)
         port = srv.getsockname()[1]
         user = tempfile.mkdtemp(prefix="hwbot")
-        proc = subprocess.Popen([a.engine, "--internal", "--port", str(port), "--prefix", a.prefix,
-                                 "--user-prefix", user, "--nosound", "--nomusic", "--stats-only"],
+        # a real desktop engine with graphics (not --stats-only, which skips
+        # loading parts of the data); headless under Xvfb with software GL
+        cmd = [a.engine, "--internal", "--port", str(port), "--prefix", a.prefix,
+               "--user-prefix", user, "--nosound", "--nomusic", "--width", "640", "--height", "480"]
+        if not os.environ.get("DISPLAY"):
+            cmd = ["xvfb-run", "-a", "-s", "-screen 0 800x600x24"] + cmd
+        proc = subprocess.Popen(cmd,
                                 stdout=subprocess.DEVNULL, stderr=open(os.path.join(user, "engine.log"), "w"),
                                 env=engine_env())
         conn, _ = srv.accept()
@@ -240,6 +245,8 @@ class Bot:
                 elif c == ord("E"):
                     print("engine error:", msg[1:-2].decode("utf-8", "replace"), file=sys.stderr)
                 elif c not in NOT_RECORDED:
+                    if c == ord("M"):
+                        print("desktop bot: land digest (own):", msg[1:].decode("utf-8", "replace"), file=sys.stderr)
                     out += frame(msg)
             if out:
                 self.send("EM", base64.b64encode(out).decode())
@@ -248,6 +255,9 @@ class Bot:
             self.engine_conn = None
         self.send("ROUNDFINISHED", "1" if finished else "0")
         log = open(os.path.join(user, "engine.log")).read()
+        if self.args.log:
+            with open(self.args.log, "w") as f:
+                f.write(log)
         self.result = (rc, finished, "Desync" in log)
         print("desktop bot: engine rc=%d finished=%s desync=%s" % self.result, file=sys.stderr)
         self.game_over.set()
@@ -263,6 +273,7 @@ def main():
     ap.add_argument("--prefix", required=True)
     ap.add_argument("--team", default="Desktop Bots")
     ap.add_argument("--level", type=int, default=3)
+    ap.add_argument("--log", help="copy the engine's output to this file")
     args = ap.parse_args()
     bot = Bot(args)
     bot.run()

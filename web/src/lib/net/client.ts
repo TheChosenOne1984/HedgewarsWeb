@@ -4,6 +4,7 @@
 
 import {
   clientToRaw,
+  gameCfgToProtocol,
   MessageReader,
   parseServerMessage,
   PROTOCOL_VERSION,
@@ -185,6 +186,8 @@ export class NetClient {
   private decoder = new TextDecoder();
   private wantedNick = '';
   private pendingRoomName = '';
+  /** own teams sent with ADD_TEAM, waiting for TEAM_ACCEPTED */
+  private pendingTeams = new Map<string, RoomTeam>();
   private listeners: Listeners = {
     state: [],
     changed: [],
@@ -306,8 +309,18 @@ export class NetClient {
   startGame() {
     this.send({ type: 'StartGame', args: [] });
   }
+  /**
+   * Change a room config entry (room master). The server only sends it to
+   * the other players, so keep it in our own room state too, as the Qt
+   * frontend keeps its own settings.
+   */
   setConfig(cfg: GameCfg) {
     this.send({ type: 'Cfg', args: [cfg] });
+    if (this.room) {
+      const [name, values] = gameCfgToProtocol(cfg);
+      this.room.config.set(name, values);
+      this.emit('changed');
+    }
   }
 
   /**
@@ -521,10 +534,13 @@ export class NetClient {
         this.room?.teams.push(parseTeam(msg.args[0]));
         this.emit('changed');
         return;
-      case 'TeamAccepted':
-        // our own team, added locally by the UI before sending ADD_TEAM
+      case 'TeamAccepted': {
+        const team = this.pendingTeams.get(msg.args[0]);
+        this.pendingTeams.delete(msg.args[0]);
+        if (team && this.room) this.room.teams.push(team);
         this.emit('changed');
         return;
+      }
       case 'TeamRemove':
         if (this.room) this.room.teams = this.room.teams.filter((t) => t.name !== msg.args[0]);
         this.emit('changed');
@@ -570,13 +586,14 @@ export class NetClient {
   }
 
   /**
-   * Add our own team. It goes into the room's team list right away (the server
-   * only confirms it with TEAM_ACCEPTED); the server assigns its colour and
-   * hedgehog number and announces them with TEAM_COLOR and HH_NUM.
+   * Add our own team. It joins the room's team list when the server accepts
+   * it (TEAM_ACCEPTED), not before: by then all teams added earlier have
+   * arrived, so every client has the same team order (as frontend-qt6 does).
+   * The server assigns colour and hedgehog number (TEAM_COLOR, HH_NUM).
    */
   addOwnTeam(team: TeamInfo) {
     if (!this.room) return;
-    this.room.teams.push({
+    this.pendingTeams.set(team.name, {
       name: team.name,
       owner: this.nick,
       grave: team.grave,
@@ -589,6 +606,5 @@ export class NetClient {
       colorIndex: 0,
     });
     this.addTeam(team);
-    this.emit('changed');
   }
 }

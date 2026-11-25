@@ -19,11 +19,13 @@ echo "== build server (ws-connections) and FPC engine"
 run hw-web-web sh -c "cd rust && cargo build -q -p hedgewars-server --features ws-connections && ninja -C ../build-gate/fpc hwengine > /dev/null"
 
 cleanup() { docker rm -f hw-mixed-server hw-mixed-bot > /dev/null 2>&1 || true; }
+cleanup
 trap cleanup EXIT
 run -d --name hw-mixed-server hw-web-web rust/target/debug/hedgewars-server --port $P --ws-port $W > /dev/null
 sleep 1
-run -d --name hw-mixed-bot hw-web-web python3 -I project_files/web/tools/desktop-bot.py \
-    --server 127.0.0.1:$P --room mixed --engine build-gate/fpc/bin/hwengine --prefix share/hedgewars/Data > /dev/null
+docker run -d --network host -u "$uid" -e HOME=/tmp -v "$root:/src" -w /src --name hw-mixed-bot hw-web-web python3 -I project_files/web/tools/desktop-bot.py \
+    --server 127.0.0.1:$P --room mixed --engine build-gate/fpc/bin/hwengine --prefix share/hedgewars/Data \
+    --log "$out/desktop-engine.log" > /dev/null
 
 echo "== browsers"
 browser_rc=0

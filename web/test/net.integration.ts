@@ -93,6 +93,14 @@ describe.skipIf(!serverBin)('NetClient with the game server', () => {
     expect(bob.room!.config.has('SEED')).toBe(true);
     expect(bob.room!.config.has('SCHEME')).toBe(true);
 
+    // the master's config is the same on both sides (the server does not echo it)
+    alice.setConfig({ type: 'Seed', args: ['{shared-seed}'] });
+    alice.setConfig({ type: 'Theme', args: ['Bamboo'] });
+    await until(() => bob.room!.config.get('SEED')?.[0] === '{shared-seed}', 'seed at bob');
+    await until(() => bob.room!.config.get('THEME')?.[0] === 'Bamboo', 'theme at bob');
+    expect(alice.room!.config.get('SEED')).toEqual(['{shared-seed}']);
+    expect(alice.room!.config.get('THEME')).toEqual(['Bamboo']);
+
     alice.chat('hello bob');
     await until(() => bobChat.some((l) => l.nick === 'alice' && l.text === 'hello bob'), 'chat');
 

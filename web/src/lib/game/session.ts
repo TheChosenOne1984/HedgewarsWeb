@@ -104,7 +104,12 @@ export class GameSession {
     if (net) {
       this.unsubscribe.push(
         net.on('engineMessages', (msgs) => {
-          for (const m of msgs) this.host.push(m);
+          for (const m of msgs) {
+            for (const inner of ipcSplit(m)[0])
+              if (inner[0] === 0x4d)
+                this.debug(`land digest (net): ${new TextDecoder().decode(inner.subarray(1))}`);
+            this.host.push(m);
+          }
         }),
         // FromNet("\x01o"): the round is over for everyone
         net.on('roundFinished', () => this.host.push(ipcFrame('o'))),
@@ -115,6 +120,11 @@ export class GameSession {
         }),
       );
     }
+  }
+
+  private debug(text: string) {
+    if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('debug'))
+      console.log(text);
   }
 
   /** packs for a game setup */
@@ -144,6 +154,7 @@ export class GameSession {
       const type = String.fromCharCode(msg[0] ?? 0);
       const text = () => new TextDecoder().decode(msg.subarray(1, msg.length - 2));
       if (!LOCAL_MESSAGES.has(type)) {
+        if (type === 'M') this.debug(`land digest (own): ${text()}`);
         if (this.net) this.netBuffer.push(ipcRawFrame(msg));
         continue;
       }
