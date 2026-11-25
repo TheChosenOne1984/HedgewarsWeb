@@ -1,0 +1,21 @@
+# Build the images from this repository instead of pulling them from GHCR:
+#   docker compose -f docker-compose.yml -f build.yml up -d --build
+# (or COMPOSE_FILE=docker-compose.yml:build.yml in .env). The first build
+# compiles the engine to WebAssembly: 15–30 min, ~15 GB for the toolchain.
+#
+# SOURCE_URL: where the web client's "Source code" link points (GPL: the code
+# you serve). GHCR images link to the commit they were built from; for your
+# own builds, point it at the revision you deploy (…/tree/<commit>).
+services:
+  site:
+    build:
+      context: ../../..
+      dockerfile: project_files/web/docker/Dockerfile
+      target: site
+      args:
+        SOURCE_URL: ${SOURCE_URL:-https://github.com/TheChosenOne1984/HedgewarsWeb}
+  server:
+    build:
+      context: ../../..
+      dockerfile: project_files/web/docker/Dockerfile
+      target: server

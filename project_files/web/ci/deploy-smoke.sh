@@ -4,7 +4,7 @@
 # lobby through /ws, a local game; two players in a room through the UI. Run from the repository root on the host.
 set -eu
 root="$(pwd)"
-compose() { docker compose -p hwtest -f project_files/web/deploy/docker-compose.yml -f project_files/web/deploy/test-ports.yml "$@"; }
+compose() { docker compose -p hwtest -f project_files/web/deploy/docker-compose.yml -f project_files/web/deploy/build.yml -f project_files/web/deploy/test-ports.yml "$@"; }
 mkdir -p .cache/deploy .cache/playwright
 compose up -d --build
 trap 'compose down -v > /dev/null 2>&1 || true' EXIT

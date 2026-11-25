@@ -13,7 +13,7 @@
 set -eu
 root="$(pwd)"
 compose() {
-    docker compose -p hwtest -f project_files/web/deploy/docker-compose.yml \
+    docker compose -p hwtest -f project_files/web/deploy/docker-compose.yml -f project_files/web/deploy/build.yml \
         -f project_files/web/deploy/test-ports.yml "$@"
 }
 

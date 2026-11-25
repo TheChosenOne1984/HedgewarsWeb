@@ -8,7 +8,7 @@ set -eu
 root="$(pwd)"
 user=tester
 pass='s3cret $pass'
-compose() { docker compose -p hwtest -f project_files/web/deploy/docker-compose.yml -f project_files/web/deploy/test-ports.yml "$@"; }
+compose() { docker compose -p hwtest -f project_files/web/deploy/docker-compose.yml -f project_files/web/deploy/build.yml -f project_files/web/deploy/test-ports.yml "$@"; }
 trap 'compose down -v > /dev/null 2>&1 || true' EXIT
 BASIC_AUTH_USER=$user BASIC_AUTH_PASSWORD=$pass compose up -d --force-recreate site server > /dev/null 2>&1
 sleep 3

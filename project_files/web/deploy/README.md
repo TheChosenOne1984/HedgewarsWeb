@@ -17,8 +17,14 @@ lobby.
 GitHub Container Registry (`ghcr.io/thechosenone1984/hedgewars-site` and
 `…/hedgewars-server`): every push to `web-port` as tag `web-port`, every
 release tag `<hedgewars version>-web.<n>` (e.g. `1.1.0-web.1`) under its name
-and as `latest`. `HW_VERSION` in `.env` picks one. To build on the host
-instead (15–30 min, ~15 GB for the toolchain): `docker compose up -d --build`.
+and as `latest`. `HW_VERSION` in `.env` picks one.
+
+The server only needs `docker-compose.yml` and `.env` (plus
+`desktop-clients.yml` for desktop clients), not the repository. To build the
+images yourself instead (15–30 min, ~15 GB for the toolchain), use the
+repository and add `build.yml`:
+`docker compose -f docker-compose.yml -f build.yml up -d --build`
+(`SOURCE_URL` there sets the footer's source link).
 
 To publish a release:
 
