@@ -177,7 +177,7 @@ class Bot:
                 else:
                     self.cfg[m[1]] = m[2:]
             elif cmd == "RUN_GAME":
-                threading.Thread(target=self.play, daemon=True).start()
+                threading.Thread(target=self.play_safe, daemon=True).start()
             elif cmd == "EM":
                 data = b"".join(base64.b64decode(x) for x in m[1:])
                 with self.lock:
@@ -202,6 +202,16 @@ class Bot:
                     return
         threading.Thread(target=joiner, daemon=True).start()
 
+    def play_safe(self):
+        try:
+            self.play()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            self.result = (1, False, False)
+            self.game_over.set()
+            self.sock.shutdown(socket.SHUT_RDWR)
+
     def play(self):
         a = self.args
         config = net_config(self.cfg, self.teams, a.nick)
@@ -216,10 +226,24 @@ class Bot:
                "--user-prefix", user, "--nosound", "--nomusic", "--width", "640", "--height", "480"]
         if not os.environ.get("DISPLAY"):
             cmd = ["xvfb-run", "-a", "-s", "-screen 0 800x600x24"] + cmd
-        proc = subprocess.Popen(cmd,
-                                stdout=subprocess.DEVNULL, stderr=open(os.path.join(user, "engine.log"), "w"),
-                                env=engine_env())
-        conn, _ = srv.accept()
+        env = engine_env()
+        env.pop("SDL_VIDEODRIVER", None)  # needs a GL capable video driver (X11)
+        logfile = open(os.path.join(user, "engine.log"), "w")
+        proc = subprocess.Popen(cmd, stdout=logfile, stderr=subprocess.STDOUT, env=env)
+        srv.settimeout(60)
+        try:
+            conn, _ = srv.accept()
+        except socket.timeout:
+            proc.kill()
+            proc.wait()
+            logfile.close()
+            print("desktop bot: engine did not connect:\n" + open(os.path.join(user, "engine.log")).read(),
+                  file=sys.stderr)
+            self.result = (1, False, False)
+            self.game_over.set()
+            self.sock.shutdown(socket.SHUT_RDWR)
+            return
+        conn.settimeout(None)
         with self.lock:
             self.engine_conn = conn
         buf = b""
@@ -230,7 +254,7 @@ class Bot:
                 break
             buf += data
             out = b""
-            while len(buf) > buf[0]:
+            while buf and len(buf) > buf[0]:
                 msg = buf[1:1 + buf[0]]
                 buf = buf[1 + buf[0]:]
                 if not msg:

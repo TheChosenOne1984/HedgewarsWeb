@@ -23,7 +23,7 @@ cleanup
 trap cleanup EXIT
 run -d --name hw-mixed-server hw-web-web rust/target/debug/hedgewars-server --port $P --ws-port $W > /dev/null
 sleep 1
-docker run -d --network host -u "$uid" -e HOME=/tmp -v "$root:/src" -w /src --name hw-mixed-bot hw-web-web python3 -I project_files/web/tools/desktop-bot.py \
+docker run -d --network host -u "$uid" -e HOME=/tmp -v "$root:/src" -w /src --name hw-mixed-bot hw-web-web python3 -I -u project_files/web/tools/desktop-bot.py \
     --server 127.0.0.1:$P --room mixed --engine build-gate/fpc/bin/hwengine --prefix share/hedgewars/Data \
     --log "$out/desktop-engine.log" > /dev/null
 
@@ -34,7 +34,7 @@ run --ipc=host -e npm_config_cache=/src/.cache/playwright/npm "mcr.microsoft.com
            && cp /src/web/test/e2e/mixed-game.mjs . && cd /src && node .cache/playwright/mixed-game.mjs web/dist ws://127.0.0.1:$W $out 15" \
     || browser_rc=$?
 
-bot_rc=$(docker wait hw-mixed-bot 2>/dev/null || echo 1)
+bot_rc=$(timeout 180 docker wait hw-mixed-bot 2>/dev/null || echo 1)
 docker logs hw-mixed-bot > "$out/desktop-bot.log" 2>&1 || true
 docker logs hw-mixed-server > "$out/server.log" 2>&1 || true
 tail -2 "$out/desktop-bot.log"
