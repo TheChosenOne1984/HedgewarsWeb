@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.22)
 
 option(BUILD_OFFICIAL_SERVER "Build with official server features" OFF)
+option(BUILD_SERVER_WEBSOCKETS "Accept WebSocket connections from the web client" OFF)
 
 if(BUILD_OFFICIAL_SERVER)
-    set(server_features "official-server")
+    list(APPEND server_features "official-server")
+endif()
+if(BUILD_SERVER_WEBSOCKETS)
+    list(APPEND server_features "ws-connections")
 endif()
 
 corrosion_import_crate(

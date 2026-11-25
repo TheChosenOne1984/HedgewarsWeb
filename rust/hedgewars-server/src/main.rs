@@ -29,6 +29,13 @@ async fn main() -> tokio::io::Result<()> {
 
     //todo!("Add options for cert paths");
     opts.optopt("p", "port", "port - defaults to 46631", "PORT");
+    #[cfg(feature = "ws-connections")]
+    {
+        opts.optopt("", "ws-port", "accept WebSocket connections (web client) on this port", "PORT");
+        opts.optmulti("", "ws-origin", "allowed Origin of WebSocket clients (repeatable; default: any)", "ORIGIN");
+        opts.optmulti("", "trusted-proxy", "trust X-Forwarded-For from this reverse proxy address (repeatable)", "IP");
+    }
+    opts.optmulti("", "reconnect-limit-exempt", "do not limit reconnects from this address (repeatable; LAN, tests)", "IP");
     opts.optflag("h", "help", "help");
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -59,7 +66,57 @@ async fn main() -> tokio::io::Result<()> {
         }
     };
 
-    let mut hw_network = NetworkLayerBuilder::default().with_listener(server).build();
+    let mut reconnect_exempt = vec![];
+    for ip in matches.opt_strs("reconnect-limit-exempt") {
+        match ip.parse() {
+            Ok(ip) => reconnect_exempt.push(ip),
+            Err(e) => {
+                println!("Invalid --reconnect-limit-exempt {}: {}", ip, e);
+                return Ok(());
+            }
+        }
+    }
+    let builder = NetworkLayerBuilder::default()
+        .with_listener(server)
+        .with_reconnect_exempt(reconnect_exempt);
+    #[cfg(feature = "ws-connections")]
+    let builder = match matches.opt_str("ws-port").map(|s| u16::from_str(&s)) {
+        None => builder,
+        Some(Err(e)) => {
+            println!("Invalid --ws-port: {}", e);
+            return Ok(());
+        }
+        Some(Ok(ws_port)) => {
+            let mut trusted_proxies = vec![];
+            for ip in matches.opt_strs("trusted-proxy") {
+                match ip.parse() {
+                    Ok(ip) => trusted_proxies.push(ip),
+                    Err(e) => {
+                        println!("Invalid --trusted-proxy {}: {}", ip, e);
+                        return Ok(());
+                    }
+                }
+            }
+            let config = server::websocket::WsConfig {
+                allowed_origins: matches.opt_strs("ws-origin"),
+                trusted_proxies,
+            };
+            if config.allowed_origins.is_empty() {
+                warn!("WebSocket clients are accepted from any origin (see --ws-origin)");
+            }
+            let ws_address: SocketAddr = format!("[::]:{}", ws_port).parse().unwrap();
+            let listener = match tokio::net::TcpListener::bind(ws_address).await {
+                Ok(listener) => listener,
+                Err(err) => {
+                    warn!("Failed to bind {} ({}), falling back to IPv4", ws_address, err);
+                    tokio::net::TcpListener::bind(format!("0.0.0.0:{}", ws_port)).await?
+                }
+            };
+            info!("Accepting WebSocket connections on port {}", ws_port);
+            builder.with_ws_listener(listener, config)
+        }
+    };
+    let mut hw_network = builder.build();
 
     server::replaystorage::ReplayStorage::reorganize();
 

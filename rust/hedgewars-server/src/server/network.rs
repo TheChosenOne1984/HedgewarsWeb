@@ -18,6 +18,9 @@ use tokio::{
 #[cfg(feature = "tls-connections")]
 use tokio_native_tls::{TlsAcceptor, TlsStream};
 
+#[cfg(feature = "ws-connections")]
+use super::websocket::{self, WsConfig, WsStream};
+
 use crate::{
     core::types::ClientId,
     handlers,
@@ -65,6 +68,8 @@ enum ClientStream {
     Tcp(TcpStream),
     #[cfg(feature = "tls-connections")]
     Tls(TlsStream<TcpStream>),
+    #[cfg(feature = "ws-connections")]
+    Ws(WsStream),
 }
 
 impl Unpin for ClientStream {}
@@ -80,6 +85,8 @@ impl AsyncRead for ClientStream {
             Tcp(stream) => Pin::new(stream).poll_read(cx, buf),
             #[cfg(feature = "tls-connections")]
             Tls(stream) => Pin::new(stream).poll_read(cx, buf),
+            #[cfg(feature = "ws-connections")]
+            Ws(stream) => Pin::new(stream).poll_read(cx, buf),
         }
     }
 }
@@ -95,6 +102,8 @@ impl AsyncWrite for ClientStream {
             Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
             #[cfg(feature = "tls-connections")]
             Tls(stream) => Pin::new(stream).poll_write(cx, buf),
+            #[cfg(feature = "ws-connections")]
+            Ws(stream) => Pin::new(stream).poll_write(cx, buf),
         }
     }
 
@@ -104,6 +113,8 @@ impl AsyncWrite for ClientStream {
             Tcp(stream) => Pin::new(stream).poll_flush(cx),
             #[cfg(feature = "tls-connections")]
             Tls(stream) => Pin::new(stream).poll_flush(cx),
+            #[cfg(feature = "ws-connections")]
+            Ws(stream) => Pin::new(stream).poll_flush(cx),
         }
     }
 
@@ -113,6 +124,8 @@ impl AsyncWrite for ClientStream {
             Tcp(stream) => Pin::new(stream).poll_shutdown(cx),
             #[cfg(feature = "tls-connections")]
             Tls(stream) => Pin::new(stream).poll_shutdown(cx),
+            #[cfg(feature = "ws-connections")]
+            Ws(stream) => Pin::new(stream).poll_shutdown(cx),
         }
     }
 }
@@ -172,7 +185,12 @@ impl NetworkClient {
         if data.is_empty() {
             return WriteResult::Ok;
         }
-        match timeout(write_timeout, stream.write_all(&data)).await {
+        // flush: TLS and WebSocket streams buffer until flushed
+        let write = async {
+            stream.write_all(&data).await?;
+            stream.flush().await
+        };
+        match timeout(write_timeout, write).await {
             Ok(Ok(())) => WriteResult::Ok,
             Ok(Err(_)) => WriteResult::IoError,
             Err(_) => WriteResult::TimedOut,
@@ -294,6 +312,11 @@ pub struct NetworkLayer {
     listener: TcpListener,
     #[cfg(feature = "tls-connections")]
     tls: Option<TlsListener>,
+    #[cfg(feature = "ws-connections")]
+    ws: Option<(TcpListener, WsConfig)>,
+    // connections accepted (and handshaken) elsewhere, e.g. WebSocket
+    accepted_tx: UnboundedSender<(ClientStream, SocketAddr)>,
+    accepted_rx: UnboundedReceiver<(ClientStream, SocketAddr)>,
     #[cfg(feature = "official-server")]
     db: super::database::Database,
     server_state: ServerState,
@@ -336,6 +359,17 @@ impl NetworkLayer {
                 Err(e) => {
                     warn!("Unable to establish TLS connection: {}", e);
                 }
+            }
+        }
+
+        async fn accepted_branch(
+            layer: &mut NetworkLayer,
+            stream: ClientStream,
+            addr: SocketAddr,
+            update_tx: UnboundedSender<ClientUpdate>,
+        ) {
+            if let Some(client) = layer.create_client(stream, addr).await {
+                tokio::spawn(client.run(update_tx));
             }
         }
 
@@ -383,10 +417,16 @@ impl NetworkLayer {
             }
         }
 
+        #[cfg(feature = "ws-connections")]
+        if let Some((listener, config)) = self.ws.take() {
+            tokio::spawn(run_ws_listener(listener, config, self.accepted_tx.clone()));
+        }
+
         loop {
             #[cfg(not(feature = "tls-connections"))]
             tokio::select! {
                 Ok(value) = self.listener.accept() => accept_plain_branch(self, value, self.update_tx.clone()).await,
+                Some((stream, addr)) = self.accepted_rx.recv() => accepted_branch(self, stream, addr, self.update_tx.clone()).await,
                 client_message = self.update_rx.recv(), if !self.clients.is_empty() => client_message_branch(self, client_message).await
             }
 
@@ -395,11 +435,13 @@ impl NetworkLayer {
                 tokio::select! {
                     Ok(value) = self.listener.accept() => accept_plain_branch(self, value, self.update_tx.clone()).await,
                     Ok(value) = self.tls.as_ref().unwrap().listener.accept() => accept_tls_branch(self, value, self.update_tx.clone()).await,
+                    Some((stream, addr)) = self.accepted_rx.recv() => accepted_branch(self, stream, addr, self.update_tx.clone()).await,
                     client_message = self.update_rx.recv(), if !self.clients.is_empty() => client_message_branch(self, client_message).await
                 }
             } else {
                 tokio::select! {
                     Ok(value) = self.listener.accept() => accept_plain_branch(self, value, self.update_tx.clone()).await,
+                    Some((stream, addr)) = self.accepted_rx.recv() => accepted_branch(self, stream, addr, self.update_tx.clone()).await,
                     client_message = self.update_rx.recv(), if !self.clients.is_empty() => client_message_branch(self, client_message).await
                 }
             }
@@ -411,6 +453,15 @@ impl NetworkLayer {
         stream: ClientStream,
         addr: SocketAddr,
     ) -> Option<NetworkClient> {
+        // Loopback clients become local admins (no accounts without the
+        // official server). A WebSocket client's address comes from the
+        // reverse proxy; behind a proxy on the same host without
+        // --trusted-proxy every web client would be loopback, so web
+        // clients never get local admin rights.
+        #[cfg(feature = "ws-connections")]
+        let may_be_local_admin = !matches!(stream, ClientStream::Ws(_));
+        #[cfg(not(feature = "ws-connections"))]
+        let may_be_local_admin = true;
         self.next_conn_id += 1;
         let conn_id = self.next_conn_id;
         let entry = self.clients.vacant_entry();
@@ -430,7 +481,7 @@ impl NetworkLayer {
             client_id,
             &mut response,
             peer_ip,
-            peer_ip.is_loopback(),
+            may_be_local_admin && peer_ip.is_loopback(),
         );
 
         self.handle_response(response).await;
@@ -537,12 +588,15 @@ impl NetworkLayer {
 
 pub struct NetworkLayerBuilder {
     listener: Option<TcpListener>,
+    #[cfg(feature = "ws-connections")]
+    ws: Option<(TcpListener, WsConfig)>,
     #[cfg(feature = "tls-connections")]
     tls_listener: Option<TcpListener>,
     #[cfg(feature = "tls-connections")]
     tls_acceptor: Option<TlsAcceptor>,
     clients_capacity: usize,
     rooms_capacity: usize,
+    reconnect_exempt: Vec<std::net::IpAddr>,
 }
 
 impl Default for NetworkLayerBuilder {
@@ -550,7 +604,10 @@ impl Default for NetworkLayerBuilder {
         Self {
             clients_capacity: 1024,
             rooms_capacity: 512,
+            reconnect_exempt: vec![],
             listener: None,
+            #[cfg(feature = "ws-connections")]
+            ws: None,
             #[cfg(feature = "tls-connections")]
             tls_listener: None,
             #[cfg(feature = "tls-connections")]
@@ -563,6 +620,23 @@ impl NetworkLayerBuilder {
     pub fn with_listener(self, listener: TcpListener) -> Self {
         Self {
             listener: Some(listener),
+            ..self
+        }
+    }
+
+    /// Addresses whose reconnects are not limited
+    pub fn with_reconnect_exempt(self, reconnect_exempt: Vec<std::net::IpAddr>) -> Self {
+        Self {
+            reconnect_exempt,
+            ..self
+        }
+    }
+
+    /// Accept WebSocket connections on `listener` (feature `ws-connections`)
+    #[cfg(feature = "ws-connections")]
+    pub fn with_ws_listener(self, listener: TcpListener, config: WsConfig) -> Self {
+        Self {
+            ws: Some((listener, config)),
             ..self
         }
     }
@@ -584,10 +658,14 @@ impl NetworkLayerBuilder {
     }
 
     pub fn build(self) -> NetworkLayer {
-        let server_state = ServerState::new(self.clients_capacity, self.rooms_capacity);
+        let mut server_state = ServerState::new(self.clients_capacity, self.rooms_capacity);
+        for ip in self.reconnect_exempt {
+            server_state.anteroom.joins_monitor.exempt(ip);
+        }
 
         let clients = Slab::with_capacity(self.clients_capacity);
         let (update_tx, update_rx) = unbounded_channel();
+        let (accepted_tx, accepted_rx) = unbounded_channel();
 
         #[cfg(feature = "official-server")]
         let db_url = std::env::var("HEDGEWARS_DB_URL")
@@ -604,11 +682,43 @@ impl NetworkLayerBuilder {
             },
             #[cfg(feature = "official-server")]
             db: super::database::Database::new(&db_url),
+            #[cfg(feature = "ws-connections")]
+            ws: self.ws,
+            accepted_tx,
+            accepted_rx,
             server_state,
             clients,
             next_conn_id: 0,
             update_tx,
             update_rx,
+        }
+    }
+}
+
+/// Accept WebSocket connections; each handshake runs in its own task so that
+/// slow clients cannot hold up the server.
+#[cfg(feature = "ws-connections")]
+async fn run_ws_listener(
+    listener: TcpListener,
+    config: WsConfig,
+    accepted_tx: UnboundedSender<(ClientStream, SocketAddr)>,
+) {
+    let config = std::sync::Arc::new(config);
+    loop {
+        match listener.accept().await {
+            Ok((stream, peer)) => {
+                let config = config.clone();
+                let accepted_tx = accepted_tx.clone();
+                tokio::spawn(async move {
+                    match websocket::accept(stream, peer, &config).await {
+                        Ok((ws, addr)) => {
+                            let _ = accepted_tx.send((ClientStream::Ws(ws), addr));
+                        }
+                        Err(e) => debug!("WebSocket handshake with {} failed: {}", peer, e),
+                    }
+                });
+            }
+            Err(e) => warn!("Unable to accept WebSocket connection: {}", e),
         }
     }
 }
@@ -770,5 +880,132 @@ mod tests {
                     HwServerMessage::Bye(reason) if reason == "Ping timeout"
                 )
         }));
+    }
+
+    #[cfg(feature = "ws-connections")]
+    mod websocket {
+        use super::*;
+        use futures_util::{SinkExt, StreamExt};
+        use tokio::io::AsyncReadExt;
+        use tokio_tungstenite::{
+            connect_async,
+            tungstenite::{client::IntoClientRequest, Message},
+        };
+
+        const WAIT: Duration = Duration::from_secs(5);
+
+        async fn start_server(allowed_origins: Vec<String>) -> (SocketAddr, SocketAddr) {
+            let tcp = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let ws = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addrs = (tcp.local_addr().unwrap(), ws.local_addr().unwrap());
+            let config = WsConfig {
+                allowed_origins,
+                trusted_proxies: vec![],
+            };
+            let mut layer = NetworkLayerBuilder::default()
+                .with_listener(tcp)
+                .with_ws_listener(ws, config)
+                .build();
+            tokio::spawn(async move { layer.run().await });
+            addrs
+        }
+
+        /// read from a WebSocket until the received text contains `needle`
+        async fn ws_expect<S>(ws: &mut S, received: &mut String, needle: &str)
+        where
+            S: futures_util::Stream<
+                    Item = Result<Message, tokio_tungstenite::tungstenite::Error>,
+                > + Unpin,
+        {
+            timeout(WAIT, async {
+                while !received.contains(needle) {
+                    match ws.next().await.expect("connection closed").unwrap() {
+                        Message::Binary(data) => received.push_str(&String::from_utf8(data).unwrap()),
+                        Message::Text(text) => received.push_str(&text),
+                        _ => {}
+                    }
+                }
+            })
+            .await
+            .unwrap_or_else(|_| panic!("expected {:?}, got {:?}", needle, received));
+        }
+
+        async fn tcp_expect(stream: &mut TcpStream, received: &mut String, needle: &str) {
+            timeout(WAIT, async {
+                let mut buf = [0u8; 4096];
+                while !received.contains(needle) {
+                    let n = stream.read(&mut buf).await.unwrap();
+                    assert!(n > 0, "connection closed");
+                    received.push_str(&String::from_utf8_lossy(&buf[..n]));
+                }
+            })
+            .await
+            .unwrap_or_else(|_| panic!("expected {:?}, got {:?}", needle, received));
+        }
+
+        #[tokio::test]
+        async fn ws_client_meets_tcp_client() {
+            let (tcp_addr, ws_addr) = start_server(vec![]).await;
+
+            // web client logs in over WebSocket (binary frames)
+            let (mut ws, _) = connect_async(format!("ws://{}", ws_addr)).await.unwrap();
+            let mut ws_in = String::new();
+            ws_expect(&mut ws, &mut ws_in, "CONNECTED\n").await;
+            ws.send(Message::Binary(b"NICK\nwebuser\n\nPROTO\n60\n\n".to_vec()))
+                .await
+                .unwrap();
+            ws_expect(&mut ws, &mut ws_in, "LOBBY:JOINED\nwebuser\n").await;
+
+            // desktop client logs in over TCP and sees the web client in the lobby
+            let mut tcp = TcpStream::connect(tcp_addr).await.unwrap();
+            let mut tcp_in = String::new();
+            tcp_expect(&mut tcp, &mut tcp_in, "CONNECTED\n").await;
+            tcp.write_all(b"NICK\ndesktopuser\n\nPROTO\n60\n\n").await.unwrap();
+            tcp_expect(&mut tcp, &mut tcp_in, "LOBBY:JOINED\n").await;
+            assert!(tcp_in.contains("webuser"), "lobby list: {:?}", tcp_in);
+            ws_expect(&mut ws, &mut ws_in, "LOBBY:JOINED\ndesktopuser\n").await;
+
+            // both connect from loopback: the desktop client is a local admin,
+            // the web client (address from a proxy) never is
+            tcp_expect(&mut tcp, &mut tcp_in, "CLIENT_FLAGS\n+a\ndesktopuser\n").await;
+            assert!(!tcp_in.contains("+a\nwebuser"), "web client is admin: {:?}", tcp_in);
+            assert!(!ws_in.contains("+a\nwebuser"), "web client is admin: {:?}", ws_in);
+
+            // the web client creates a room (text frames work too), the desktop client joins
+            ws.send(Message::Text("CREATE_ROOM\nwebroom\n\n".to_string()))
+                .await
+                .unwrap();
+            tcp_expect(&mut tcp, &mut tcp_in, "ROOM\nADD\n").await;
+            tcp.write_all(b"JOIN_ROOM\nwebroom\n\n").await.unwrap();
+            tcp_expect(&mut tcp, &mut tcp_in, "JOINED\n").await;
+            ws_expect(&mut ws, &mut ws_in, "JOINED\ndesktopuser\n").await;
+
+            // chat in the room in both directions
+            tcp.write_all(b"CHAT\nhello from desktop\n\n").await.unwrap();
+            ws_expect(&mut ws, &mut ws_in, "CHAT\ndesktopuser\nhello from desktop\n\n").await;
+            ws.send(Message::Binary(b"CHAT\nhello from the web\n\n".to_vec()))
+                .await
+                .unwrap();
+            tcp_expect(&mut tcp, &mut tcp_in, "CHAT\nwebuser\nhello from the web\n\n").await;
+        }
+
+        #[tokio::test]
+        async fn ws_origin_allowlist() {
+            let (_, ws_addr) = start_server(vec!["https://hw.example".to_string()]).await;
+
+            let mut request = format!("ws://{}", ws_addr).into_client_request().unwrap();
+            request
+                .headers_mut()
+                .insert("Origin", "https://evil.example".parse().unwrap());
+            assert!(connect_async(request).await.is_err(), "foreign origin accepted");
+
+            let mut request = format!("ws://{}", ws_addr).into_client_request().unwrap();
+            request
+                .headers_mut()
+                .insert("Origin", "https://hw.example".parse().unwrap());
+            let (mut ws, _) = connect_async(request).await.expect("allowed origin rejected");
+            let mut ws_in = String::new();
+            ws_expect(&mut ws, &mut ws_in, "CONNECTED\n").await;
+        }
     }
 }
