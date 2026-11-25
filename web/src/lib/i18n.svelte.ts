@@ -116,6 +116,10 @@ const DE: Record<string, string> = {
   'game over ({n})': 'Spiel beendet ({n})',
   'error: {text}': 'Fehler: {text}',
   'engine error: {text}': 'Engine-Fehler: {text}',
+  'The game went out of sync with the other players and had to stop. This is a bug; please report it.':
+    'Das Spiel ist mit den anderen Spielern aus dem Takt geraten und musste anhalten. Das ist ein Fehler; bitte melde ihn.',
+  'The game engine stopped with an error ({n}): {text}':
+    'Die Spiel-Engine wurde mit einem Fehler beendet ({n}): {text}',
   'The game could not start: {text}': 'Das Spiel konnte nicht starten: {text}',
   // settings
   Language: 'Sprache',

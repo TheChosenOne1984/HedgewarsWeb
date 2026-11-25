@@ -106,8 +106,11 @@ export async function previewParamsFromRoom(room: Room): Promise<PreviewParams> 
 
 export interface SessionEvents {
   status: (text: string) => void;
-  /** the engine has ended; finished: the game reached its end ('q') */
-  ended: (code: number, finished: boolean) => void;
+  /**
+   * the engine has ended; finished: the game reached its end ('q');
+   * error: the engine's last fatal error message ('E'), if any
+   */
+  ended: (code: number, finished: boolean, error?: string) => void;
   stats: (kind: string, text: string) => void;
 }
 
@@ -115,6 +118,7 @@ export class GameSession {
   private netBuffer: Uint8Array[] = [];
   private flushQueued = false;
   private finished = false;
+  private error: string | undefined;
   private unsubscribe: (() => void)[] = [];
 
   constructor(
@@ -192,7 +196,8 @@ export class GameSession {
           this.finished = true;
           break;
         case 'E':
-          this.events.status(t('engine error: {text}', { text: text() }));
+          this.error = text();
+          this.events.status(t('engine error: {text}', { text: this.error }));
           break;
         case 'i':
           this.events.stats(
@@ -226,6 +231,6 @@ export class GameSession {
     if (this.netBuffer.length > 0) this.flush();
     for (const u of this.unsubscribe) u();
     this.net?.roundFinished(this.finished);
-    this.events.ended(code, this.finished);
+    this.events.ended(code, this.finished, this.error);
   }
 }

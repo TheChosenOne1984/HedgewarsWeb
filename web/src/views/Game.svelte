@@ -14,6 +14,18 @@
   let showLog = $state(false);
   const net = app.client.state === 'game';
 
+  /** what to tell the player when the engine stopped with an error (HWGame 'E') */
+  function engineErrorText(code: number, error?: string): string {
+    if (error && /desync/i.test(error))
+      return t(
+        'The game went out of sync with the other players and had to stop. This is a bug; please report it.',
+      );
+    return t('The game engine stopped with an error ({n}): {text}', {
+      n: code,
+      text: error || log.slice(-3).join(' / '),
+    });
+  }
+
   function localSetup(): GameSetup {
     const r = choiceToRoomSettings(app.choice);
     return {
@@ -60,9 +72,10 @@
       {
         status: (s) => (status = s),
         stats: () => {},
-        ended: (code, finished) => {
+        ended: (code, finished, error) => {
           status = t('game over ({n})', { n: code });
           app.lastGame = { code, finished };
+          if (error || code !== 0) app.error = engineErrorText(code, error);
           app.screen = net ? (app.client.room ? 'room' : 'lobby') : 'local';
         },
       },
