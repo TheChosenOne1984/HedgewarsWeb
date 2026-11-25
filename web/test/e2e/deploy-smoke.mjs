@@ -9,7 +9,10 @@ const [siteUrl, outDir] = process.argv.slice(2);
 const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
-const page = await browser.newPage({ viewport: { width: 1024, height: 700 }, ignoreHTTPSErrors: true });
+const page = await browser.newPage({
+  viewport: { width: 1024, height: 700 },
+  ignoreHTTPSErrors: true,
+});
 const log = [];
 const problems = [];
 page.on('console', (m) => {
@@ -37,7 +40,9 @@ try {
   await waitFor(() => !!window.hedgewars?.catalog, 30000);
   check(true, 'page and asset catalog loaded');
 
-  const source = await page.$$eval('a', (as) => as.map((a) => a.href).filter((h) => /github|source|git/i.test(h)));
+  const source = await page.$$eval('a', (as) =>
+    as.map((a) => a.href).filter((h) => /github|source|git/i.test(h)),
+  );
   check(source.length > 0, `source link (${source[0] ?? 'none'})`);
 
   await page.fill('input[autocomplete=nickname]', 'smoke');
@@ -59,8 +64,14 @@ try {
   await page.click('button.start');
   await waitFor(() => window.hedgewars.screen === 'game', 15000);
   await page.waitForTimeout(20000);
-  const still = await page.evaluate(() => ({ screen: window.hedgewars.screen, last: window.hedgewars.lastGame }));
-  check(still.screen === 'game' || still.last?.code === 0, `local game runs (${JSON.stringify(still)})`);
+  const still = await page.evaluate(() => ({
+    screen: window.hedgewars.screen,
+    last: window.hedgewars.lastGame,
+  }));
+  check(
+    still.screen === 'game' || still.last?.code === 0,
+    `local game runs (${JSON.stringify(still)})`,
+  );
   await page.screenshot({ path: `${outDir}/deploy-game.png` });
 } catch (e) {
   problems.push(String(e));
