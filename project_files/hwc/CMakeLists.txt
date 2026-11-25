@@ -132,6 +132,8 @@ if(BUILD_ENGINE_JS)
         "-sEXPORTED_RUNTIME_METHODS=[FS,GL,ccall,cwrap,UTF8ToString,stringToUTF8,stringToNewUTF8,HEAPU8]"
         "-sEXIT_RUNTIME=0"
         "-sINVOKE_RUN=0"
+        # no eval/new Function: the site runs with a strict Content-Security-Policy
+        "-sDYNAMIC_EXECUTION=0"
         "-lidbfs.js"
         "-lnodefs.js"
         # The AI runs in a fiber (rtl/web.c), which needs Asyncify. Only the
