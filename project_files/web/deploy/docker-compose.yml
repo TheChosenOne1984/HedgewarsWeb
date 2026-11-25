@@ -1,9 +1,11 @@
 # Hedgewars online: web client (Caddy) and game server.
 #
-#   DOMAIN=hw.example.org docker compose up -d
+#   cp .env.example .env    # set DOMAIN, optionally basic auth / desktop clients
+#   docker compose up -d
 #
-# Desktop clients connect to the game server directly on port 46631, web
-# clients through Caddy (HTTPS, /ws). Run from this directory.
+# Web clients connect through Caddy (HTTPS, /ws). Desktop clients need the
+# game server's port, published by desktop-clients.yml (see .env.example).
+# Run from this directory.
 
 name: hedgewars
 
@@ -15,6 +17,9 @@ services:
       target: site
     environment:
       DOMAIN: ${DOMAIN:-localhost}
+      # optional basic auth for the whole site (empty password: off)
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-hedgewars}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
     ports:
       - "80:80"
       - "443:443"
@@ -44,8 +49,6 @@ services:
       - --reconnect-limit-exempt=127.0.0.1
     environment:
       RUST_LOG: info
-    ports:
-      - "46631:46631"
     volumes:
       - server_data:/var/lib/hedgewars-server
     networks:

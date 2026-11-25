@@ -2,6 +2,9 @@
 # DOMAIN: the site's host name (Caddy gets a TLS certificate for it);
 # use "localhost" or ":80" for local tests.
 {$DOMAIN:localhost} {
+	# optional basic auth (BASIC_AUTH_PASSWORD, see start.sh)
+	import /etc/caddy/auth-{$HW_AUTH:off}.caddy
+
 	encode zstd gzip
 
 	header {

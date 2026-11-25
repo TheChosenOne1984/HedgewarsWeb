@@ -105,7 +105,10 @@ RUN cd web && npm ci --no-fund --no-audit --silent \
 
 FROM caddy:2.8.4-alpine AS site
 COPY --from=site-build /srv-site /srv
-COPY project_files/web/deploy/Caddyfile /etc/caddy/Caddyfile
+COPY project_files/web/deploy/site/Caddyfile project_files/web/deploy/site/auth-on.caddy \
+     project_files/web/deploy/site/auth-off.caddy /etc/caddy/
+COPY project_files/web/deploy/site/start.sh /usr/local/bin/hw-site-start
+CMD ["hw-site-start"]
 
 
 FROM native AS server-build

@@ -1,0 +1,8 @@
+# Publish the game server's port for desktop (Qt) clients. Without this file
+# only web clients can play (through Caddy); basic auth does not cover this
+# port. Enable it with COMPOSE_FILE in .env (see .env.example) or
+#   docker compose -f docker-compose.yml -f desktop-clients.yml up -d
+services:
+  server:
+    ports:
+      - "46631:46631"

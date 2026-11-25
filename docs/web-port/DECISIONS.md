@@ -343,3 +343,16 @@ Format: what was decided, why, and what was rejected.
   proxy; behind a proxy on the same host without `--trusted-proxy`, every web client would be
   loopback and thus admin. WebSocket clients therefore never become local admins; desktop clients
   on the server host still do (test: a TCP and a WebSocket client from loopback).
+
+### D35: Optional basic auth, optional desktop port
+- `BASIC_AUTH_PASSWORD` in `.env` turns on basic auth for the whole site; the site container hashes
+  the password at start (`site/start.sh`), so no hash has to be escaped in compose files.
+- WebKit does not send basic auth credentials with the WebSocket handshake (Chromium and Firefox
+  do). After a successful login Caddy sets a random `hw_ws` session cookie (HttpOnly, Secure,
+  SameSite=Strict, path `/ws`, new token on every start) that admits the game connection; without
+  it `/ws` needs basic auth. The cookie is set inside a `route` after `basic_auth`, so a refused
+  request never carries it (tested).
+- The desktop port is no longer published by default; `desktop-clients.yml` publishes it. Basic
+  auth cannot cover that plain TCP port.
+- `project_files/web/ci/deploy-auth.sh` checks 401 without/with wrong credentials, the cookie
+  rules, the desktop port option, and the lobby behind basic auth in Chromium, Firefox and WebKit.

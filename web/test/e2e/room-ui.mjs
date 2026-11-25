@@ -105,12 +105,23 @@ try {
     (await shown()) === schemeName,
     `bob sees the scheme the room master chose (${schemeName})`,
   );
-  const alicePreview = await settled(alice, '');
-  const bobPreview = await settled(bob, '');
+  // previews follow the config as it arrives: wait until both show the same
+  const same = async () => {
+    let a = '';
+    let b = '';
+    for (let i = 0; i < 50; i++) {
+      a = await preview(alice);
+      b = await preview(bob);
+      if (a && a === b) break;
+      await alice.waitForTimeout(200);
+    }
+    return [a, b];
+  };
+  const [alicePreview, bobPreview] = await same();
   check(alicePreview !== '' && alicePreview === bobPreview, 'both see the same map preview');
   await alice.click('.settings button');
-  const alicePreview2 = await settled(alice, alicePreview);
-  const bobPreview2 = await settled(bob, bobPreview);
+  await settled(alice, alicePreview);
+  const [alicePreview2, bobPreview2] = await same();
   check(alicePreview2 !== alicePreview, 'a new map seed renders a new preview for the room master');
   check(
     bobPreview2 !== bobPreview && bobPreview2 === alicePreview2,

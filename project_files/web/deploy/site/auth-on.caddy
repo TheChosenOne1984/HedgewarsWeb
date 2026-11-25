@@ -1,0 +1,20 @@
+# Basic auth for the whole site, the game connection (/ws) included.
+# Credentials come from BASIC_AUTH_USER / BASIC_AUTH_PASSWORD (see start.sh).
+#
+# WebKit (Safari) does not send basic auth credentials with the WebSocket
+# handshake, so an authenticated page also gets a random session cookie
+# (HW_WS_TOKEN, new on every start) that admits the game connection; /ws
+# without that cookie still needs basic auth.
+@needs_auth {
+	not {
+		path /ws
+		header_regexp Cookie (^|;\s*)hw_ws={$HW_WS_TOKEN}(;|$)
+	}
+}
+route {
+	basic_auth @needs_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+	# only reached after a successful login (route keeps this order)
+	header Set-Cookie "hw_ws={$HW_WS_TOKEN}; Path=/ws; Secure; HttpOnly; SameSite=Strict"
+}

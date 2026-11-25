@@ -9,12 +9,24 @@ lobby.
 ## Run
 
     cd project_files/web/deploy
-    DOMAIN=hw.example.org docker compose up -d --build
+    cp .env.example .env      # then edit .env
+    docker compose up -d --build
+
+Settings in `.env`:
 
 - `DOMAIN` must resolve to the host; Caddy obtains a certificate for it.
   Without `DOMAIN` the site runs on `https://localhost` with a local CA.
-- Ports: 80/443 (site), 46631 (desktop clients, plain TCP).
-- Desktop clients: add the host as a server in the network dialog (port 46631).
+- `BASIC_AUTH_PASSWORD` (and `BASIC_AUTH_USER`, default `hedgewars`): protect
+  the whole site with basic auth, for a private group. Empty: open site.
+  The game connection (`/ws`) is covered too; since Safari/WebKit does not
+  send basic auth with WebSocket handshakes, a logged-in page gets a random
+  session cookie for `/ws` (new on every container start).
+- Desktop clients: off by default. `COMPOSE_FILE=docker-compose.yml:desktop-clients.yml`
+  publishes the game server's port 46631; add the host as a server in the Qt
+  network dialog. Basic auth does not protect this port; restrict it with a
+  firewall if the site is private.
+
+Ports: 80/443 (site), 46631 (desktop clients, only with `desktop-clients.yml`).
 
 The first build compiles the engine to WebAssembly and builds the asset packs;
 it takes several minutes.
@@ -53,7 +65,7 @@ source in its footer; set the build argument `SOURCE_URL` (Dockerfile stage
 
 ## Testing the stack
 
-    project_files/web/ci/deploy-smoke.sh
+    project_files/web/ci/deploy-smoke.sh   # build, start on test ports, browser checks
+    project_files/web/ci/deploy-auth.sh    # basic auth and desktop port options
 
-builds the images, starts them on ports 8080/8443/46731 (`test-ports.yml`)
-and checks the site with a headless browser.
+The tests start the stack on ports 8080/8443/46731 (`test-ports.yml`).
