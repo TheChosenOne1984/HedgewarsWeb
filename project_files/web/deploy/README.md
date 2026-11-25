@@ -39,6 +39,9 @@ Settings in `.env`:
   The game connection (`/ws`) is covered too; since Safari/WebKit does not
   send basic auth with WebSocket handshakes, a logged-in page gets a random
   session cookie for `/ws` (new on every container start).
+- `RECONNECT_LIMIT=off`: the game server limits reconnects per IP address
+  (2 in 30 s, 3 in 2 min, 5 in 10 min). Several players at home share one
+  address and hit it quickly; on a private (basic auth) site turn it off.
 - Desktop clients: off by default. `COMPOSE_FILE=docker-compose.yml:desktop-clients.yml`
   publishes the game server's port 46631; add the host as a server in the Qt
   network dialog. Basic auth does not protect this port; restrict it with a

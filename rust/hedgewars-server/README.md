@@ -56,4 +56,6 @@ rightmost address that is not a trusted proxy is used.
 The server refuses a client whose address connected more than twice in 30 s,
 three times in 2 min or five times in 10 min ("Reconnected too fast"; refused
 attempts do not count). `--reconnect-limit-exempt=IP` (repeatable) lifts the
-limit for an address, e.g. a LAN or a test setup where all players share one.
+limit for an address, e.g. a LAN or a test setup where all players share one;
+`--reconnect-limit=off` (or `HW_RECONNECT_LIMIT=off`) turns it off for
+everyone, for private servers where players share addresses (households).

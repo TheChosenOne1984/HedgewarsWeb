@@ -35,6 +35,7 @@ async fn main() -> tokio::io::Result<()> {
         opts.optmulti("", "ws-origin", "allowed Origin of WebSocket clients (repeatable; default: any)", "ORIGIN");
         opts.optmulti("", "trusted-proxy", "trust X-Forwarded-For from this reverse proxy address (repeatable)", "IP");
     }
+    opts.optopt("", "reconnect-limit", "on (default) or off: limit reconnects per address (2 in 30 s, 3 in 2 min, 5 in 10 min); default from HW_RECONNECT_LIMIT", "on|off");
     opts.optmulti("", "reconnect-limit-exempt", "do not limit reconnects from this address (repeatable; LAN, tests)", "IP");
     opts.optflag("h", "help", "help");
     let matches = match opts.parse(&args[1..]) {
@@ -76,9 +77,25 @@ async fn main() -> tokio::io::Result<()> {
             }
         }
     }
+    let reconnect_limit = match matches
+        .opt_str("reconnect-limit")
+        .or_else(|| env::var("HW_RECONNECT_LIMIT").ok())
+        .as_deref()
+    {
+        None | Some("") | Some("on") => true,
+        Some("off") => false,
+        Some(other) => {
+            println!("Invalid --reconnect-limit {} (on or off)", other);
+            return Ok(());
+        }
+    };
+    if !reconnect_limit {
+        warn!("Reconnects are not limited (--reconnect-limit=off)");
+    }
     let builder = NetworkLayerBuilder::default()
         .with_listener(server)
-        .with_reconnect_exempt(reconnect_exempt);
+        .with_reconnect_exempt(reconnect_exempt)
+        .with_reconnect_limit(reconnect_limit);
     #[cfg(feature = "ws-connections")]
     let builder = match matches.opt_str("ws-port").map(|s| u16::from_str(&s)) {
         None => builder,

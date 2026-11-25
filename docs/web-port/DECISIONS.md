@@ -367,3 +367,15 @@ Format: what was decided, why, and what was rejected.
 - Compose names the GHCR images (`HW_VERSION`, default `latest` = newest release), so a server
   only pulls; the test stack uses local `:local` images with `pull_policy: build`, so tests never
   run registry images by accident.
+
+### D37: Lighter site, reconnect limit can be turned off
+- The site is compressed once at build time (`web/scripts/precompress.sh`: zstd -19 and gzip -9 for
+  files that shrink by at least 5 %) and Caddy serves the files as they are (`precompressed`); no
+  live compression. The engine shrinks from 1.75 MB (live zstd) to 1.41 MB, the core pack from
+  7.7 MB (sent plain before: Caddy does not compress octet-streams) to 5.4 MB. Basic auth hashes
+  use bcrypt cost 10 (`htpasswd`) instead of Caddy's 14, which cost 1.6 s of CPU per uncached check
+  on a small server.
+- Players behind one router share an IP address and hit the server's reconnect limit quickly (6
+  devices: 2 got in). New server option `--reconnect-limit=off` / `HW_RECONNECT_LIMIT=off`, in
+  compose `RECONNECT_LIMIT` (default on, as upstream); recommended off for private (basic auth)
+  sites.

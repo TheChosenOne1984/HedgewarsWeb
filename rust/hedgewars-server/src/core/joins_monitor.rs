@@ -8,6 +8,8 @@ pub struct JoinsMonitor {
     joins: HashMap<IpAddr, Vec<Instant>>,
     /// addresses without a reconnect limit (--reconnect-limit-exempt)
     exempt: HashSet<IpAddr>,
+    /// --reconnect-limit=off: no limit at all
+    disabled: bool,
 }
 
 impl JoinsMonitor {
@@ -15,6 +17,7 @@ impl JoinsMonitor {
         Self {
             joins: HashMap::new(),
             exempt: HashSet::new(),
+            disabled: false,
         }
     }
 
@@ -24,8 +27,14 @@ impl JoinsMonitor {
         self.exempt.insert(host);
     }
 
+    /// Turn the limit off for everyone (private servers where many players
+    /// share one address, e.g. a household behind one router).
+    pub fn disable(&mut self) {
+        self.disabled = true;
+    }
+
     pub fn check_and_record(&mut self, host: IpAddr) -> bool {
-        if self.exempt.contains(&host) {
+        if self.disabled || self.exempt.contains(&host) {
             return true;
         }
         let now = Instant::now();
@@ -75,6 +84,16 @@ mod tests {
         assert!(!monitor.check_and_record(limited));
         for _ in 0..10 {
             assert!(monitor.check_and_record(exempt));
+        }
+    }
+
+    #[test]
+    fn no_limit_when_disabled() {
+        let mut monitor = JoinsMonitor::new();
+        monitor.disable();
+        let host: IpAddr = "192.0.2.1".parse().unwrap();
+        for _ in 0..10 {
+            assert!(monitor.check_and_record(host));
         }
     }
 }

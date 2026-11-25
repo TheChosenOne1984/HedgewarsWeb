@@ -597,6 +597,7 @@ pub struct NetworkLayerBuilder {
     clients_capacity: usize,
     rooms_capacity: usize,
     reconnect_exempt: Vec<std::net::IpAddr>,
+    reconnect_limit: bool,
 }
 
 impl Default for NetworkLayerBuilder {
@@ -605,6 +606,7 @@ impl Default for NetworkLayerBuilder {
             clients_capacity: 1024,
             rooms_capacity: 512,
             reconnect_exempt: vec![],
+            reconnect_limit: true,
             listener: None,
             #[cfg(feature = "ws-connections")]
             ws: None,
@@ -628,6 +630,14 @@ impl NetworkLayerBuilder {
     pub fn with_reconnect_exempt(self, reconnect_exempt: Vec<std::net::IpAddr>) -> Self {
         Self {
             reconnect_exempt,
+            ..self
+        }
+    }
+
+    /// Limit reconnects per address (default) or not
+    pub fn with_reconnect_limit(self, reconnect_limit: bool) -> Self {
+        Self {
+            reconnect_limit,
             ..self
         }
     }
@@ -661,6 +671,9 @@ impl NetworkLayerBuilder {
         let mut server_state = ServerState::new(self.clients_capacity, self.rooms_capacity);
         for ip in self.reconnect_exempt {
             server_state.anteroom.joins_monitor.exempt(ip);
+        }
+        if !self.reconnect_limit {
+            server_state.anteroom.joins_monitor.disable();
         }
 
         let clients = Slab::with_capacity(self.clients_capacity);
