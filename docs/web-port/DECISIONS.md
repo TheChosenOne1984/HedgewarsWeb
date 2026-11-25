@@ -314,3 +314,15 @@ Format: what was decided, why, and what was rejected.
   (rebinding removes an action's old key). Actions and labels follow `frontend-qt6/binds.cpp`;
   browser `KeyboardEvent.code` (physical keys, like SDL scancodes) maps to the names in
   `Data/misc/keys.csv`. No engine change.
+
+### D32: Engine errors, browser matrix, performance
+- When the engine stops with a fatal error (`E` message, e.g. "Desync detected"), the client shows
+  it after returning to the room (a desync gets its own explanation) and ends the round as
+  unfinished, like `HWGame`.
+- `project_files/web/ci/browser-matrix.sh` runs a local game of two AI teams in Chromium, Firefox
+  and WebKit (Playwright 1.49.1, software GL under Xvfb). All three run it at 59–60 fps (vsync);
+  with the same seed they render identical frames.
+- The engine is built with `-O3` (CMake Release); `hwengine.wasm` is 4.3 MB (1.7 MB gzip, served
+  with zstd/gzip). LTO was not enabled: frame times are at the vsync limit already, and it would
+  widen the room for compiler differences the determinism gate would have to catch.
+  `--profiling-funcs` keeps function names in the module for readable crash traces.
