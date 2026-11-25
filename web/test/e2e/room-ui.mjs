@@ -123,10 +123,43 @@ try {
   await until(alice, (v) => v.teams[1]?.colour !== before, 'colour change shown to alice');
   await until(bob, (v) => v.teams[1]?.colour !== before, 'colour change reaches bob');
 
+  // the room master leaves: bob takes over, alice and her team are gone, no error
+  await alice.click('.bar button'); // leave room
+  const bobState = () =>
+    bob.evaluate(() => ({
+      error: window.hedgewars.error,
+      master: window.hedgewars.client.room?.isMaster,
+      players: [...document.querySelectorAll('.room ul li')].map((e) => e.textContent.trim()),
+      teams: document.querySelectorAll('.team').length,
+    }));
+  let st = await bobState();
+  for (let i = 0; i < 25 && !(st.master && st.players.length === 1 && st.teams === 1); i++) {
+    await bob.waitForTimeout(200);
+    st = await bobState();
+  }
+  check(st.error === '', `no error for bob when the room master leaves (${st.error})`);
+  check(
+    !!st.master && st.players.length === 1 && st.teams === 1,
+    `bob is the new room master, alone with his team (${JSON.stringify(st)})`,
+  );
+
+  // alice comes back; bob, now room master, starts the game
+  await alice.waitForSelector('tr:has-text("ui test") button');
+  await alice.click('tr:has-text("ui test") button');
+  await alice.waitForSelector('.room');
+  await alice.click('.add button');
+  await until(bob, (v) => v.teams.length === 2, "alice's team is back");
+  const bobScheme = await bob
+    .locator('.settings select')
+    .first()
+    .evaluate((x) => x.value);
+  check(bobScheme === schemeName, `the new room master keeps the room's scheme (${bobScheme})`);
+  const aliceSees = await alice.evaluate(() => document.querySelector('.settings dd')?.textContent);
+  check(aliceSees === schemeName, `a returning player sees the room's scheme (${aliceSees})`);
   await alice.click('.actions button:first-child'); // ready
   await bob.click('.actions button:first-child');
-  await alice.waitForTimeout(500);
-  await alice.click('.actions button.primary:last-child'); // start game
+  await bob.waitForTimeout(500);
+  await bob.click('.actions button.primary:last-child'); // start game
   const started = async (p) => {
     for (let i = 0; i < 50; i++) {
       if ((await p.evaluate(() => window.hedgewars.screen)) === 'game') return true;
@@ -134,8 +167,8 @@ try {
     }
     return false;
   };
-  check(await started(alice), 'the room master starts the game');
-  check(await started(bob), 'the game starts for bob');
+  check(await started(bob), 'the new room master starts the game');
+  check(await started(alice), 'the game starts for alice');
   await alice.waitForTimeout(5000);
   await alice.screenshot({ path: `${outDir}/room-ui-game.png` });
 } catch (e) {

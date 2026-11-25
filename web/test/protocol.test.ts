@@ -36,8 +36,20 @@ describe('server messages', () => {
   it('rejects unknown and malformed messages', () => {
     expect(() => parseServerMessage('NO_SUCH_THING\n\n')).toThrow(ProtocolError);
     expect(() => parseServerMessage('PROTO\nabc\n\n')).toThrow(ProtocolError);
-    expect(() => parseServerMessage('CHAT\nonly nick\n\n')).toThrow(ProtocolError);
+    expect(() => parseServerMessage('LEFT\n\n')).toThrow(ProtocolError);
     expect(() => parseServerMessage('ROOM_CONTROL_ACCESS\n256\n\n')).toThrow(ProtocolError);
+  });
+
+  it('reads an empty last text argument (it merges with the terminator on the wire)', () => {
+    // the server sends LEFT nick "" as "LEFT\nbob\n\n\n"
+    const reader = new MessageReader();
+    const raws = reader.feed('LEFT\nbob\n\n\nLOBBY:LEFT\nbob\n\n\nCHAT\nbob\n\n\nBYE\n\n');
+    expect(raws.map(parseServerMessage)).toEqual([
+      { type: 'RoomLeft', args: ['bob', ''] },
+      { type: 'LobbyLeft', args: ['bob', ''] },
+      { type: 'ChatMsg', args: ['bob', ''] },
+      { type: 'Bye', args: [''] },
+    ]);
   });
 });
 

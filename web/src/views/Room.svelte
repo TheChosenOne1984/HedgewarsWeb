@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t as tr } from '../lib/i18n.svelte';
-  import { app, choiceToRoomSettings } from '../lib/app.svelte';
+  import { untrack } from 'svelte';
+  import { app, choiceToRoomSettings, type GameChoice } from '../lib/app.svelte';
   import { TEAM_COLORS } from '../lib/engine/frontend-data.generated';
   import Chat from '../components/Chat.svelte';
   import GameSettings from '../components/GameSettings.svelte';
@@ -34,14 +35,45 @@
     if (r) void previewParamsFromRoom(r).then((p) => (previewParams = p));
   });
   let sentConfig = false;
+  let wasGuest = false;
 
-  // as room master, publish the full room config once (GameCFGWidget::fullNetConfig)
+  // as the room's creator, publish the full room config once
+  // (GameCFGWidget::fullNetConfig); as a player who takes over from a room
+  // master who left, keep the room's settings and edit those
   $effect(() => {
-    if (isMaster && !sentConfig) {
+    if (!isMaster) wasGuest = true;
+    else if (!sentConfig) {
       sentConfig = true;
-      app.client.sendRoomConfig(choiceToRoomSettings(app.choice));
+      if (wasGuest)
+        app.choice = choiceFromConfig(
+          untrack(() => config),
+          app.choice,
+        );
+      else app.client.sendRoomConfig(choiceToRoomSettings(app.choice));
     }
   });
+
+  /** the settings of a room as the room master's choices (for the settings form) */
+  function choiceFromConfig(c: Map<string, string[]>, current: GameChoice): GameChoice {
+    const get = (k: string) => (c.get(k) ?? [])[0];
+    const map = get('MAP') ?? '+rnd+';
+    const mapTypes: Record<string, GameChoice['mapType']> = {
+      '0': 'random',
+      '1': 'maze',
+      '2': 'perlin',
+      '5': 'wfc',
+    };
+    return {
+      ...current,
+      schemeName: get('SCHEME') ?? current.schemeName,
+      ammoName: get('AMMO') ?? current.ammoName,
+      style: get('SCRIPT') ?? current.style,
+      theme: get('THEME') ?? current.theme,
+      seed: get('SEED') ?? current.seed,
+      mapType: !map.startsWith('+') ? 'map' : (mapTypes[get('MAPGEN') ?? '0'] ?? current.mapType),
+      map: !map.startsWith('+') ? map : current.map,
+    };
+  }
 
   function publish() {
     app.client.sendRoomConfig(choiceToRoomSettings(app.choice));

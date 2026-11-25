@@ -284,10 +284,17 @@ export class NetClient {
   // room
   leaveRoom(message: string | null = null) {
     this.send({ type: 'Part', args: [message] });
-    this.room = null;
+    this.leftRoom();
     this.setState('lobby');
     this.refreshRooms();
   }
+
+  /** room flags (master, ready, ...) belong to the room we are leaving */
+  private leftRoom() {
+    this.room = null;
+    for (const f of ['h', 'r', 'g']) this.player(this.nick).flags.delete(f);
+  }
+
   addTeam(team: TeamInfo) {
     this.send({ type: 'AddTeam', args: [team] });
   }
@@ -529,7 +536,7 @@ export class NetClient {
         return;
       case 'RoomAbandoned':
       case 'Kicked':
-        this.room = null;
+        this.leftRoom();
         this.setState('lobby');
         this.chatLine(
           '',

@@ -415,6 +415,16 @@ export function parseServerMessage(raw: string): ServerMessage {
   const exactly = (n: number) => {
     if (l.length !== n) throw new ProtocolError(`${cmd}: expected ${n - 1} arguments`);
   };
+  /**
+   * n fields, the last one free text: an empty last argument merges with the
+   * message terminator on the wire ("LEFT\nnick\n\n\n" reads as one
+   * argument), so a missing last field means ''. Returns that field.
+   */
+  const textLast = (n: number): string => {
+    if (l.length !== n && l.length !== n - 1)
+      throw new ProtocolError(`${cmd}: expected ${n - 1} arguments`);
+    return l[n - 1] ?? '';
+  };
   const str = (s: string | undefined) => {
     if (s === undefined) throw new ProtocolError(`${cmd}: missing argument`);
     return s;
@@ -448,8 +458,7 @@ export function parseServerMessage(raw: string): ServerMessage {
       exactly(2);
       return { type: 'Redirect', args: [int(a1, U16)] };
     case 'BYE':
-      exactly(2);
-      return { type: 'Bye', args: [str(a1)] };
+      return { type: 'Bye', args: [textLast(2)] };
     case 'NICK':
       exactly(2);
       return { type: 'Nick', args: [str(a1)] };
@@ -466,8 +475,7 @@ export function parseServerMessage(raw: string): ServerMessage {
       exactly(2);
       return { type: 'ServerAuth', args: [str(a1)] };
     case 'ROOMABANDONED':
-      exactly(2);
-      return { type: 'RoomAbandoned', args: [str(a1)] };
+      return { type: 'RoomAbandoned', args: [textLast(2)] };
     case 'ROOM_CONTROL_ACCESS':
       exactly(2);
       return { type: 'RoomControlAccess', args: [int(a1, U8) !== 0] };
@@ -481,23 +489,17 @@ export function parseServerMessage(raw: string): ServerMessage {
       exactly(2);
       return { type: 'TeamAccepted', args: [str(a1)] };
     case 'SERVER_MESSAGE':
-      exactly(2);
-      return { type: 'ServerMessage', args: [str(a1)] };
+      return { type: 'ServerMessage', args: [textLast(2)] };
     case 'NOTICE':
-      exactly(2);
-      return { type: 'Notice', args: [str(a1)] };
+      return { type: 'Notice', args: [textLast(2)] };
     case 'WARNING':
-      exactly(2);
-      return { type: 'Warning', args: [str(a1)] };
+      return { type: 'Warning', args: [textLast(2)] };
     case 'ERROR':
-      exactly(2);
-      return { type: 'Error', args: [str(a1)] };
+      return { type: 'Error', args: [textLast(2)] };
     case 'LOBBY:LEFT':
-      exactly(3);
-      return { type: 'LobbyLeft', args: [str(a1), str(a2)] };
+      return { type: 'LobbyLeft', args: [str(a1), textLast(3)] };
     case 'CHAT':
-      exactly(3);
-      return { type: 'ChatMsg', args: [str(a1), str(a2)] };
+      return { type: 'ChatMsg', args: [str(a1), textLast(3)] };
     case 'TEAM_COLOR':
       exactly(3);
       return { type: 'TeamColor', args: [str(a1), int(a2, U8)] };
@@ -508,8 +510,7 @@ export function parseServerMessage(raw: string): ServerMessage {
       exactly(3);
       return { type: 'Connected', args: [str(a1), int(a2, U32)] };
     case 'LEFT':
-      exactly(3);
-      return { type: 'RoomLeft', args: [str(a1), str(a2)] };
+      return { type: 'RoomLeft', args: [str(a1), textLast(3)] };
     case 'CLIENT_FLAGS':
       return { type: 'ClientFlags', args: [str(a1), rest(2)] };
     case 'CFG':
