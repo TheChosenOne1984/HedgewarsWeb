@@ -53,6 +53,8 @@ string255   fpcrtl_pchar2str(const char *s);
 astring     fpcrtl_pchar2astr(const char *s);
 astring     fpcrtl_str2astr(const string255 s);
 string255   fpcrtl_astr2str(const astring s);
+void        fpcrtl_glShaderSource(GLuint shader, GLsizei count, GLchar **string, const GLint *length);
+
 #define     fpcrtl_TypeInfo                         sizeof // dummy
 
 #endif

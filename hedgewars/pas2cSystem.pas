@@ -14,6 +14,12 @@ type
     ShortInt = integer;
     Int64 = integer;
     QWord = uinteger;
+    Int8 = integer;
+    Int16 = integer;
+    Int32 = integer;
+    UInt8 = uinteger;
+    UInt16 = uinteger;
+    UInt32 = uinteger;
     GLint = integer;
     GLsizei = integer;
     GLuint = integer;
@@ -39,7 +45,7 @@ type
     ansistring = string;
     widechar = string;
 
-    char = char;
+    Char = char; // C type Char (unsigned char), Pascal Char is unsigned
     PChar = ^char;
     PPChar = ^Pchar;
     PWideChar = ^WideChar;

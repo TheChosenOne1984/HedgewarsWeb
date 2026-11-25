@@ -4,6 +4,7 @@
 #  CLANG_FOUND       - system has Clang
 #  CLANG_VERSION     - Clang version
 #  CLANG_EXECUTABLE  - Clang executable
+#  CLANGXX_EXECUTABLE - Matching clang++ executable (if found)
 #
 # Copyright (c) 2013, Vittorio Giovara <vittorio.giovara@gmail.com>
 #
@@ -21,6 +22,12 @@ if (CLANG_EXECUTABLE)
                     RESULT_VARIABLE CLANG_VERSION_RESULT
                     OUTPUT_STRIP_TRAILING_WHITESPACE
                     )
+
+    # the C++ driver that belongs to the found C driver, e.g. clang-18 -> clang++-18
+    get_filename_component(_clang_dir ${CLANG_EXECUTABLE} DIRECTORY)
+    get_filename_component(_clang_name ${CLANG_EXECUTABLE} NAME)
+    string(REPLACE "clang" "clang++" _clangxx_name ${_clang_name})
+    find_program(CLANGXX_EXECUTABLE NAMES ${_clangxx_name} clang++ HINTS ${_clang_dir})
 
     if(${CLANG_VERSION_RESULT} EQUAL 0)
         string(REGEX MATCH "[0-9]+\\.[0-9]+" CLANG_VERSION "${CLANG_VERSION_OUTPUT}")

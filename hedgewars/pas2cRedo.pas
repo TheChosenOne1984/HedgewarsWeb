@@ -37,7 +37,7 @@ type
     ansistring = string;
     widechar = string;
 
-    char = char;
+    Char = char; // C type Char (unsigned char), Pascal Char is unsigned
     PChar = ^char;
     PPChar = ^Pchar;
 

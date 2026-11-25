@@ -104,6 +104,9 @@ include(${CMAKE_MODULE_PATH}/paths.cmake)
 include(${CMAKE_MODULE_PATH}/utils.cmake)
 #platform specific init code
 include(${CMAKE_MODULE_PATH}/platform.cmake)
+if(BUILD_ENGINE_JS)
+    include(${CMAKE_MODULE_PATH}/EmscriptenPorts.cmake)
+endif()
 
 #when build type is not specified, assume Debug/Release according to build version information
 if(CMAKE_BUILD_TYPE)
@@ -162,7 +165,11 @@ if(BUILD_ENGINE_C AND NOT BUILD_ENGINE_JS)
     endif()
 
     set(CMAKE_C_COMPILER ${CLANG_EXECUTABLE})
-    set(CMAKE_CXX_COMPILER ${CLANG_EXECUTABLE})
+    if(CLANGXX_EXECUTABLE)
+        set(CMAKE_CXX_COMPILER ${CLANGXX_EXECUTABLE})
+    else()
+        set(CMAKE_CXX_COMPILER ${CLANG_EXECUTABLE})
+    endif()
 endif()
 
 
