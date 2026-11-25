@@ -1,0 +1,175 @@
+// Application state shared by the views.
+
+import { defaultAmmo, defaultScheme, MAPGEN } from './engine/config';
+import { DEFAULT_AMMO_SETS, DEFAULT_SCHEMES } from './engine/frontend-data.generated';
+import { NetClient, type ChatLine, type RoomSettings } from './net/client';
+import type { TeamInfo } from './protocol/messages';
+import { load, save } from './storage';
+
+export type Screen = 'start' | 'lobby' | 'room' | 'game' | 'teams' | 'local';
+
+export interface Catalog {
+  themes: string[];
+  maps: string[];
+  hats: string[];
+  graves: string[];
+  flags: string[];
+  forts: string[];
+  voices: string[];
+  styles: string[];
+}
+
+export interface Settings {
+  nick: string;
+  server: string;
+  volume: number;
+  sound: boolean;
+  music: boolean;
+}
+
+/** where the static assets live (engine module and asset packs) */
+export const ASSETS = {
+  engine: new URL('engine/hwengine.mjs', document.baseURI).href,
+  packs: new URL('packs/', document.baseURI).href,
+};
+
+function defaultServer(): string {
+  const param = new URLSearchParams(location.search).get('server');
+  if (param) return param;
+  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+}
+
+export function newTeam(name: string): TeamInfo {
+  return {
+    owner: '',
+    name,
+    color: 0,
+    grave: 'Statue',
+    fort: 'Plane',
+    voicePack: 'Default',
+    flag: 'hedgewars',
+    difficulty: 0,
+    hedgehogs: Array.from({ length: 8 }, (_, i) => ({ name: `${name} ${i + 1}`, hat: 'NoHat' })),
+  };
+}
+
+export function randomSeed(): string {
+  const hex = (n: number) =>
+    Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) =>
+      b.toString(16).padStart(2, '0'),
+    ).join('');
+  return `{${hex(4)}-${hex(2)}-${hex(2)}-${hex(2)}-${hex(6)}}`;
+}
+
+/** room settings the user picks (as room master or for a local game) */
+export interface GameChoice {
+  schemeName: string;
+  ammoName: string;
+  style: string;
+  theme: string;
+  mapType: 'random' | 'maze' | 'perlin' | 'wfc' | 'map';
+  map: string;
+  seed: string;
+}
+
+export function choiceToRoomSettings(c: GameChoice): RoomSettings {
+  const mapgen = {
+    random: MAPGEN.regular,
+    maze: MAPGEN.maze,
+    perlin: MAPGEN.perlin,
+    wfc: MAPGEN.wfc,
+    map: MAPGEN.map,
+  }[c.mapType];
+  return {
+    scheme: defaultScheme(c.schemeName),
+    ammoName: c.ammoName,
+    ammo: defaultAmmo(c.ammoName),
+    script: c.style,
+    theme: c.theme,
+    seed: c.seed,
+    templateFilter: 0,
+    mapgen,
+    mazeSize: 0,
+    featureSize: 12,
+    staticMap: c.mapType === 'map' ? c.map : '',
+  };
+}
+
+class AppState {
+  readonly client = new NetClient();
+  screen = $state<Screen>('start');
+  /** bumped whenever the client's state changes; views derive from it */
+  tick = $state(0);
+  chat = $state<ChatLine[]>([]);
+  error = $state('');
+  status = $state('');
+  teams = $state<TeamInfo[]>([]);
+  /** result of the last game: engine exit code and whether it reached its end */
+  lastGame = $state<{ code: number; finished: boolean } | null>(null);
+  /** teams of the local game about to start */
+  localTeams = $state<TeamInfo[]>([]);
+  catalog = $state<Catalog | null>(null);
+  settings = $state<Settings>({
+    nick: '',
+    server: defaultServer(),
+    volume: 70,
+    sound: true,
+    music: false,
+  });
+  choice = $state<GameChoice>({
+    schemeName: String(DEFAULT_SCHEMES[0]![0]),
+    ammoName: DEFAULT_AMMO_SETS[0]!.name,
+    style: 'Normal',
+    theme: 'Nature',
+    mapType: 'random',
+    map: 'Bamboo',
+    seed: randomSeed(),
+  });
+
+  constructor() {
+    const c = this.client;
+    c.on('changed', () => this.tick++);
+    c.on('chat', (line) => {
+      this.chat = [...this.chat.slice(-199), line];
+    });
+    c.on('error', (e) => (this.error = e));
+    c.on('state', (s) => {
+      if (s === 'lobby') this.screen = 'lobby';
+      else if (s === 'room') this.screen = 'room';
+      else if (s === 'game') this.screen = 'game';
+      else if (s === 'disconnected' && ['lobby', 'room', 'game'].includes(this.screen))
+        this.screen = 'start';
+    });
+  }
+
+  async init() {
+    this.settings = { ...this.settings, ...(await load<Partial<Settings>>('settings', {})) };
+    if (new URLSearchParams(location.search).get('server')) this.settings.server = defaultServer();
+    this.teams = await load<TeamInfo[]>('teams', [
+      newTeam('Hedgehogs'),
+      { ...newTeam('Bots'), difficulty: 3 },
+    ]);
+    try {
+      this.catalog = (await (await fetch(ASSETS.packs + 'catalog.json')).json()) as Catalog;
+    } catch {
+      this.catalog = null;
+    }
+  }
+
+  saveTeams() {
+    void save('teams', this.teams);
+  }
+
+  saveSettings() {
+    void save('settings', this.settings);
+  }
+
+  connect() {
+    this.error = '';
+    this.chat = [];
+    this.saveSettings();
+    this.client.connect(this.settings.server, this.settings.nick || 'Guest');
+  }
+}
+
+export const app = new AppState();

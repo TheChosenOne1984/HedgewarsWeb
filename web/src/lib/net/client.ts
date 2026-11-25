@@ -46,6 +46,23 @@ export interface RoomTeam {
   colorIndex: number;
 }
 
+/** what a room master configures (sendRoomConfig) */
+export interface RoomSettings {
+  /** name + 44 scheme fields */
+  scheme: (string | number | boolean | null)[];
+  ammoName: string;
+  ammo: string;
+  script: string;
+  theme: string;
+  seed: string;
+  templateFilter: number;
+  mapgen: number;
+  mazeSize: number;
+  featureSize: number;
+  /** a static map, or '' for a generated one */
+  staticMap: string;
+}
+
 export interface Player {
   nick: string;
   /** server flags: i in room, h room master, r ready, g in game, u registered, a admin, c contributor */
@@ -291,6 +308,29 @@ export class NetClient {
   }
   setConfig(cfg: GameCfg) {
     this.send({ type: 'Cfg', args: [cfg] });
+  }
+
+  /**
+   * Send the complete room config as room master, in the order of
+   * GameCFGWidget::fullNetConfig. The map name is only sent for static maps;
+   * generated maps are described by MAPGEN.
+   */
+  sendRoomConfig(c: RoomSettings) {
+    const values = c.scheme.slice(1).map((v) => (v === null ? '' : String(v)));
+    if (values.length > 0) values[values.length - 1] = '!' + values[values.length - 1];
+    const cfgs: GameCfg[] = [
+      { type: 'Ammo', args: [c.ammoName, c.ammo] },
+      { type: 'Seed', args: [c.seed] },
+      { type: 'Template', args: [c.templateFilter] },
+      { type: 'Theme', args: [c.theme] },
+      { type: 'Scheme', args: [String(c.scheme[0]), values] },
+      { type: 'Script', args: [c.script] },
+      { type: 'MapGenerator', args: [c.mapgen] },
+      { type: 'MazeSize', args: [c.mazeSize] },
+      { type: 'FeatureSize', args: [c.featureSize] },
+    ];
+    if (c.staticMap) cfgs.push({ type: 'MapType', args: [c.staticMap] });
+    for (const cfg of cfgs) this.setConfig(cfg);
   }
 
   /** relay engine output to the other players */

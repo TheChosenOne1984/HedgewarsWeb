@@ -100,6 +100,43 @@ def write_pack(data_dir, files, out_dir, name):
     return {"file": fname, "sha256": digest, "size": len(content), "files": len(files)}
 
 
+def catalog(data_dir):
+    """Names the frontend offers for selection (themes, maps, team items, styles)."""
+    def names(rel, ext=None, dirs=False):
+        path = os.path.join(data_dir, rel)
+        if not os.path.isdir(path):
+            return []
+        out = []
+        for n in sorted(os.listdir(path)):
+            full = os.path.join(path, n)
+            if dirs and os.path.isdir(full):
+                out.append(n)
+            elif not dirs and os.path.isfile(full) and (ext is None or n.endswith(ext)):
+                out.append(n[: -len(ext)] if ext else n)
+        return out
+
+    def theme_hidden(theme):
+        cfg = os.path.join(data_dir, "Themes", theme, "theme.cfg")
+        try:
+            return any(l.strip().lower() in ("hidden = true", "hidden=true") for l in open(cfg, encoding="utf-8", errors="replace"))
+        except OSError:
+            return True
+
+    # Forts/<name>L.png (left side; R and -mask variants are optional)
+    forts = sorted(n[:-1] for n in names("Forts", ".png") if n.endswith("L"))
+    return {
+        "themes": [t for t in names("Themes", dirs=True) if not theme_hidden(t)],
+        "maps": [m for m in names("Maps", dirs=True) if os.path.exists(os.path.join(data_dir, "Maps", m, "map.png"))
+                 or os.path.exists(os.path.join(data_dir, "Maps", m, "map.cfg"))],
+        "hats": [h for h in names("Graphics/Hats", ".png")],
+        "graves": names("Graphics/Graves", ".png"),
+        "flags": [f for f in names("Graphics/Flags", ".png") if not f.startswith("cpu")],
+        "forts": forts,
+        "voices": names("Sounds/voices", dirs=True),
+        "styles": ["Normal"] + [n.replace("_", " ") for n in names("Scripts/Multiplayer", ".lua")],
+    }
+
+
 def main():
     data_dir, out_dir = sys.argv[1], sys.argv[2]
     os.makedirs(out_dir, exist_ok=True)
@@ -109,6 +146,8 @@ def main():
         manifest["packs"][name] = write_pack(data_dir, packs[name], out_dir, name)
     with open(os.path.join(out_dir, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
+    with open(os.path.join(out_dir, "catalog.json"), "w") as f:
+        json.dump(catalog(data_dir), f, indent=1, sort_keys=True)
     core = manifest["packs"]["core"]
     total = sum(p["size"] for p in manifest["packs"].values())
     print("%d packs, %.1f MB total, core %.1f MB (%d files)"
