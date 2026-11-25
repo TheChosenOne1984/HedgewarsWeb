@@ -60,7 +60,7 @@ The game server bans and throttles per client address. It trusts
 ## Source code
 
 Hedgewars is GPL-2.0 (code) and GFDL-1.2 (data). The web client links to the
-source in its footer; set the build argument `SOURCE_URL` (Dockerfile stage
+source in its footer; set `SOURCE_URL` in `.env` (build argument of the Dockerfile stage
 `site-build`) to the exact revision you deploy.
 
 ## Testing the stack

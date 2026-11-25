@@ -15,6 +15,9 @@ services:
       context: ../../..
       dockerfile: project_files/web/docker/Dockerfile
       target: site
+      args:
+        # where the footer's "Source code" link points (GPL)
+        SOURCE_URL: ${SOURCE_URL:-https://github.com/TheChosenOne1984/HedgewarsWeb}
     environment:
       DOMAIN: ${DOMAIN:-localhost}
       # optional basic auth for the whole site (empty password: off)

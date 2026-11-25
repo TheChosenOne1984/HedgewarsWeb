@@ -10,7 +10,8 @@
   import Local from './views/Local.svelte';
   import Settings from './views/Settings.svelte';
 
-  const sourceUrl = import.meta.env.VITE_SOURCE_URL || 'https://github.com/hedgewars/hw';
+  const sourceUrl =
+    import.meta.env.VITE_SOURCE_URL || 'https://github.com/TheChosenOne1984/HedgewarsWeb';
 
   onMount(() => {
     void app.init();

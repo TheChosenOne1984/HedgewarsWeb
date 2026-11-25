@@ -88,7 +88,7 @@ RUN mkdir -p /tmp/physfs && cd /tmp/physfs \
 # See project_files/web/deploy/.
 
 FROM web AS site-build
-ARG SOURCE_URL=https://github.com/hedgewars/hw
+ARG SOURCE_URL=https://github.com/TheChosenOne1984/HedgewarsWeb
 COPY . /src
 WORKDIR /src
 RUN emcmake cmake -S . -B /build/web -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_ENGINE_JS=1 \
