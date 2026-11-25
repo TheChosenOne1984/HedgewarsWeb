@@ -323,7 +323,8 @@ var paramIndex: LongInt;
 //var tmpInt: LongInt;
 begin
 
-    paramIndex:= {$IFDEF HWLIBRARY}0{$ELSE}1{$ENDIF};
+    // the web engine is a library, but its host passes argv like to a program (argv[0] = program name)
+    paramIndex:= {$IFDEF HWLIBRARY}{$IFDEF WEBGL}1{$ELSE}0{$ENDIF}{$ELSE}1{$ENDIF};
     paramTotal:= ParamCount; //-1 because pascal enumeration is inclusive
     wrongParameter:= false;
     while (paramIndex <= paramTotal) do

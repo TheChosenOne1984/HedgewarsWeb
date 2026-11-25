@@ -1,4 +1,6 @@
-find_package(SDL2 REQUIRED CONFIG)
+if(NOT BUILD_ENGINE_JS)
+    find_package(SDL2 REQUIRED CONFIG)
+endif()
 
 include_directories(${SDL2_INCLUDE_DIRS})
 include_directories(${PHYSFS_INCLUDE_DIR})
@@ -28,8 +30,4 @@ install(TARGETS physlayer RUNTIME DESTINATION ${target_binary_install_dir}
 
 ## added standard variables (FORCE or cmake won't pick 'em)
 set(PHYSLAYER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Physlayer include dir" FORCE)
-
-if(BUILD_ENGINE_JS)
-    set_target_properties(physlayer PROPERTIES SUFFIX ".bc")
-endif()
 

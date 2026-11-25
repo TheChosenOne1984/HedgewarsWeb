@@ -19,4 +19,4 @@ bitflags = "2.13.0"
 
 [lib]
 name = "hwengine_future"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "staticlib"]

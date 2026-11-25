@@ -39,7 +39,8 @@ procedure NetGetNextCmd;
 procedure doPut(putX, putY: LongInt; fromAI: boolean);
 
 implementation
-uses uConsole, uConsts, uVariables, uCommands, uUtils, uDebug, uLocale, uSound;
+uses uConsole, uConsts, uVariables, uCommands, uUtils, uDebug, uLocale, uSound
+     {$IFDEF WEBGL}, uWeb{$ENDIF};
 
 const
     cSendEmptyPacketTime = 1000;
@@ -57,6 +58,10 @@ type PCmd = ^TCmd;
 
 var IPCSock: PTCPSocket;
     fds: PSDLNet_SocketSet;
+{$IFDEF WEBGL}
+    // the web engine talks to the JavaScript frontend through uWeb instead of a socket
+    ipcOpened: boolean;
+{$ENDIF}
     isPonged: boolean;
     SocketString: shortstring;
 
@@ -68,6 +73,24 @@ var IPCSock: PTCPSocket;
                 buf: array[0..Pred(cSendBufferSize)] of byte;
                 count: Word;
                 end;
+
+function ipcIsOpen: boolean; inline;
+begin
+{$IFDEF WEBGL}
+    ipcIsOpen:= ipcOpened
+{$ELSE}
+    ipcIsOpen:= IPCSock <> nil
+{$ENDIF}
+end;
+
+procedure ipcSend(p: pointer; len: Longword); inline;
+begin
+{$IFDEF WEBGL}
+    hw_ipc_send(p, len)
+{$ELSE}
+    SDLNet_TCP_Send(IPCSock, p, len)
+{$ENDIF}
+end;
 
 function AddCmd(Time: Word; str: shortstring): PCmd;
 var command: PCmd;
@@ -117,6 +140,11 @@ dispose(tmp)
 end;
 
 procedure InitIPC;
+{$IFDEF WEBGL}
+begin
+    ipcOpened:= true
+end;
+{$ELSE}
 var ipaddr: TIPAddress;
 begin
     WriteToConsole('Init SDL_Net... ');
@@ -132,6 +160,7 @@ begin
     SDLCheck(IPCSock <> nil, 'SDLNet_TCP_Open', true);
     WriteLnToConsole(msgOK)
 end;
+{$ENDIF}
 
 procedure ParseChatCommand(command: shortstring; message: shortstring;
                            messageStartIndex: Byte);
@@ -223,6 +252,26 @@ procedure IPCCheckSock;
 var i: LongInt;
     s: shortstring;
 begin
+{$IFDEF WEBGL}
+    if not ipcOpened then
+        exit;
+
+    // drain everything the frontend has queued
+    repeat
+        i:= hw_ipc_recv(@s[1], 255 - Length(SocketString));
+        if i > 0 then
+        begin
+            s[0]:= char(i);
+            SocketString:= SocketString + s;
+            while (Length(SocketString) > 1) and (Length(SocketString) > byte(SocketString[1])) do
+            begin
+                ParseIPCCommand(copy(SocketString, 2, byte(SocketString[1])));
+                Delete(SocketString, 1, Succ(byte(SocketString[1])))
+            end
+        end
+    until i <= 0;
+end;
+{$ELSE}
     if IPCSock = nil then
         exit;
 
@@ -246,6 +295,7 @@ begin
         OutError('IPC connection lost', true)
     end;
 end;
+{$ENDIF}
 
 procedure LoadRecordFromFile(fileName: shortstring);
 var f  : File;
@@ -305,9 +355,9 @@ end;
 
 procedure flushBuffer();
 begin
-    if IPCSock <> nil then
+    if ipcIsOpen then
         begin
-        SDLNet_TCP_Send(IPCSock, @sendBuffer.buf, sendBuffer.count);
+        ipcSend(@sendBuffer.buf, sendBuffer.count);
         flushDelayTicks:= 0;
         sendBuffer.count:= 0
         end
@@ -315,7 +365,7 @@ end;
 
 procedure SendIPC(s: shortstring);
 begin
-if IPCSock <> nil then
+if ipcIsOpen then
     begin
     if s[0] > #251 then
         s[0]:= #251;
@@ -336,15 +386,15 @@ if IPCSock <> nil then
         if (s[1] = 'N') or (s[1] = '#') then
             flushBuffer();
         end else
-        SDLNet_TCP_Send(IPCSock, @s, Succ(byte(s[0])))
+        ipcSend(@s, Succ(byte(s[0])))
     end
 end;
 
 procedure SendIPCRaw(p: pointer; len: Longword);
 begin
-if IPCSock <> nil then
+if ipcIsOpen then
     begin
-    SDLNet_TCP_Send(IPCSock, p, len)
+    ipcSend(p, len)
     end
 end;
 
@@ -361,10 +411,17 @@ end;
 procedure IPCWaitPongEvent;
 begin
 isPonged:= false;
+{$IFDEF WEBGL}
+// The browser cannot block until the frontend answers, so the frontend has
+// to queue its reply (e.g. the complete game config) before it is asked.
+IPCCheckSock;
+checkFails(isPonged, 'IPC: the frontend did not queue a reply before the engine waited for it', true);
+{$ELSE}
 repeat
     IPCCheckSock;
     SDL_Delay(1)
 until isPonged or (not allOK)
+{$ENDIF}
 end;
 
 procedure SendIPCAndWaitReply(s: shortstring);
@@ -492,7 +549,7 @@ begin
     // TODO: should we try to clean more stuff here?
     SDL_Quit;
 
-    if IPCSock <> nil then
+    if ipcIsOpen then
         halt(HaltFatalError)
     else
         halt(HaltFatalErrorNoIPC);
@@ -558,6 +615,9 @@ begin
 
     IPCSock:= nil;
     fds:= nil;
+{$IFDEF WEBGL}
+    ipcOpened:= false;
+{$ENDIF}
 
     headcmd:= nil;
     lastcmd:= nil;
@@ -572,9 +632,13 @@ end;
 procedure freeModule;
 begin
     while headcmd <> nil do RemoveCmd;
+{$IFDEF WEBGL}
+    ipcOpened:= false;
+{$ELSE}
     SDLNet_FreeSocketSet(fds);
     SDLNet_TCP_Close(IPCSock);
     SDLNet_Quit();
+{$ENDIF}
 
 end;
 

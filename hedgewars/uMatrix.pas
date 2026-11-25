@@ -230,6 +230,8 @@ begin
     Result[3,3]:=lhs[0,3]*rhs[3,0] + lhs[1,3]*rhs[3,1] + lhs[2,3]*rhs[3,2] + lhs[3,3]*rhs[3,3];
 }
 
+{$IFNDEF WEBGL}
+    // verify against the fixed function pipeline, which WebGL does not have
     glPushMatrix;
     glLoadMatrixf(@lhs[0, 0]);
     glMultMatrixf(@rhs[0, 0]);
@@ -263,6 +265,7 @@ begin
         checkFails(false, 'Error in matrix multiplication?!', true);
     end;
     {$ENDIF}
+{$ENDIF}
 
 end;
 

@@ -647,7 +647,7 @@ glViewport(0, 0, cScreenWidth, cScreenHeight);
     // disable dithering
     glDisable(GL_DITHER);
     // enable common states by default as they save a lot
-    glEnable(GL_TEXTURE_2D);
+    {$IFNDEF WEBGL}glEnable(GL_TEXTURE_2D);{$ENDIF} // not a capability in WebGL
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 {$ENDIF}
@@ -1501,7 +1501,7 @@ end;
 
 procedure DrawLineOnScreen(X0, Y0, X1, Y1, Width: Single; r, g, b, a: Byte);
 begin
-    glEnable(GL_LINE_SMOOTH);
+    {$IFNDEF WEBGL}glEnable(GL_LINE_SMOOTH);{$ENDIF} // not in WebGL
 
     EnableTexture(False);
 
@@ -1519,7 +1519,7 @@ begin
 
     EnableTexture(True);
 
-    glDisable(GL_LINE_SMOOTH);
+    {$IFNDEF WEBGL}glDisable(GL_LINE_SMOOTH);{$ENDIF}
 end;
 
 procedure DrawRect(rect: TSDL_Rect; r, g, b, a: Byte; Fill: boolean);
@@ -1590,14 +1590,14 @@ begin
     end;
 
     EnableTexture(False);
-    glEnable(GL_LINE_SMOOTH);
+    {$IFNDEF WEBGL}glEnable(GL_LINE_SMOOTH);{$ENDIF} // not in WebGL
     //openglPushMatrix;
     glLineWidth(Width);
     SetVertexPointer(@VertexBuffer[0], 60);
     glDrawArrays(GL_LINE_LOOP, 0, 60);
     //openglPopMatrix;
     EnableTexture(True);
-    glDisable(GL_LINE_SMOOTH);
+    {$IFNDEF WEBGL}glDisable(GL_LINE_SMOOTH);{$ENDIF}
 end;
 
 procedure DrawCircleFilled(X, Y, Radius: LongInt; r, g, b, a: Byte);
