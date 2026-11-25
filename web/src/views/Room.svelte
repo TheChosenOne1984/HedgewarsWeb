@@ -8,7 +8,7 @@
   import type { PreviewParams } from '../lib/engine/preview';
   import { previewParamsFromRoom } from '../lib/game/session';
 
-  let room = $derived((app.tick, app.client.room));
+  let room = $derived((app.tick, app.client.room ? { ...app.client.room } : null));
   // The client mutates its room state in place; copy it on every change so
   // that keyed {#each} blocks see new values (same object = no update).
   let teams = $derived((app.tick, (app.client.room?.teams ?? []).map((t) => ({ ...t }))));
@@ -23,7 +23,8 @@
   let ready = $derived(
     (app.tick, app.client.players.get(app.client.nick)?.flags.has('r') ?? false),
   );
-  let config = $derived((app.tick, app.client.room?.config ?? new Map<string, string[]>()));
+  // a copy, so that views and the map preview see changes (the client mutates the map)
+  let config = $derived((app.tick, new Map(app.client.room?.config ?? [])));
   let addable = $derived(app.teams.filter((t) => !teams.some((rt) => rt.name === t.name)));
   let selected = $state('');
   let previewParams = $state<PreviewParams | null>(null);
@@ -53,6 +54,13 @@
 
   const color = (i: number) => '#' + (TEAM_COLORS[i] ?? 0).toString(16).padStart(6, '0');
   const cfg = (k: string) => (config.get(k) ?? [])[0] ?? '';
+  /** the map as the room master chose it: a fixed map's name or the generator */
+  function mapLabel(): string {
+    const map = cfg('MAP');
+    if (map && !map.startsWith('+')) return map;
+    const generators = ['Random terrain', 'Maze', 'Perlin', 'Drawn map', 'Forts', 'Tiles (WFC)'];
+    return tr(generators[Number(cfg('MAPGEN'))] ?? 'Random terrain');
+  }
 </script>
 
 {#if room}
@@ -150,7 +158,7 @@
               <dt>{tr('Theme')}</dt>
               <dd>{cfg('THEME')}</dd>
               <dt>{tr('Map')}</dt>
-              <dd>{cfg('MAP')} ({tr('generator {n}', { n: cfg('MAPGEN') })})</dd>
+              <dd>{mapLabel()}</dd>
             </dl>
           {/if}
         </div>

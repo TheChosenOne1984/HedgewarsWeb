@@ -85,6 +85,38 @@ try {
   await until(alice, (v) => v.chat.some((l) => l.includes('hi alice')), 'chat reaches alice');
   await alice.locator('.chatbox').screenshot({ path: `${outDir}/room-ui-chat.png` });
 
+  // room settings reach the other player; a new seed renders a new preview
+  const preview = (p) =>
+    p.evaluate(() => document.querySelector('.preview canvas')?.toDataURL() ?? '');
+  const settled = async (p, old) => {
+    for (let i = 0; i < 50; i++) {
+      const now = await preview(p);
+      if (now && now !== old) return now;
+      await p.waitForTimeout(200);
+    }
+    return old;
+  };
+  const scheme = alice.locator('.settings select').first();
+  await scheme.selectOption({ index: 3 });
+  const schemeName = await scheme.evaluate((s) => s.value);
+  const shown = async () => bob.evaluate(() => document.querySelector('.settings dd')?.textContent);
+  for (let i = 0; i < 25 && (await shown()) !== schemeName; i++) await bob.waitForTimeout(200);
+  check(
+    (await shown()) === schemeName,
+    `bob sees the scheme the room master chose (${schemeName})`,
+  );
+  const alicePreview = await settled(alice, '');
+  const bobPreview = await settled(bob, '');
+  check(alicePreview !== '' && alicePreview === bobPreview, 'both see the same map preview');
+  await alice.click('.settings button');
+  const alicePreview2 = await settled(alice, alicePreview);
+  const bobPreview2 = await settled(bob, bobPreview);
+  check(alicePreview2 !== alicePreview, 'a new map seed renders a new preview for the room master');
+  check(
+    bobPreview2 !== bobPreview && bobPreview2 === alicePreview2,
+    'and the same new preview for bob',
+  );
+
   // the room master changes the colour of bob's team
   const before = (await view(alice)).teams[1].colour;
   await alice.locator('.team').nth(1).locator('select').nth(1).selectOption({ index: 5 });
