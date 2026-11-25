@@ -22,7 +22,7 @@ like the FPC engine, which is what any non-FPC target needs.
 ## Making the series
 
     project_files/web/tools/upstream-series.sh            # branch upstream-series
-    git format-patch $(git merge-base web-port origin/master)..upstream-series
+    git format-patch $(git merge-base web-port upstream/master)..upstream-series
 
 The script takes the files of each topic from `web-port`, so the series always
 matches the tested code; its end differs from `web-port` only in new web files.

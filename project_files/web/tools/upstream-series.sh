@@ -10,7 +10,7 @@
 set -eu
 src="${1:-web-port}"
 branch="${2:-upstream-series}"
-base="$(git merge-base "$src" origin/master)"
+base="$(git merge-base "$src" upstream/master)"
 work="$(mktemp -d)"
 trap 'git worktree remove --force "$work" 2>/dev/null || true' EXIT
 git worktree add -q --detach "$work" "$base"
