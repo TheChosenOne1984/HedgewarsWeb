@@ -6,6 +6,7 @@ import { defaultAmmo, defaultScheme, MAPGEN, type GameSetup, type Scheme } from 
 import { gameConfig } from '../engine/config';
 import { EngineHost, ipcFrame, ipcRawFrame, ipcSplit } from '../engine/host';
 import { md5Hex } from '../engine/md5';
+import type { PreviewParams } from '../engine/preview';
 import type { NetClient, Room } from '../net/client';
 
 /** map names that stand for a generated map */
@@ -15,7 +16,7 @@ const GENERATED_MAPS = new Set(['+rnd+', '+maze+', '+perlin+', '+drawn+', '+fort
 const LOCAL_MESSAGES = new Set('?CEiQqmHsbVvW~');
 
 /** qUncompress: 4-byte big-endian size, then a zlib stream */
-async function qUncompress(data: Uint8Array): Promise<Uint8Array> {
+export async function qUncompress(data: Uint8Array): Promise<Uint8Array> {
   if (data.length < 4) return new Uint8Array();
   const stream = new Blob([data.subarray(4)])
     .stream()
@@ -78,6 +79,27 @@ export async function roomToGameSetup(room: Room, nick: string): Promise<GameSet
       isNetTeam: t.owner !== nick,
     })),
     playerHash: md5Hex(nick),
+  };
+}
+
+/** the map preview parameters of a room (what HWMap gets from the room's config) */
+export async function previewParamsFromRoom(room: Room): Promise<PreviewParams> {
+  const mapName = cfg(room, 'MAP')[0] ?? '+rnd+';
+  const scheme = cfg(room, 'SCHEME');
+  const drawn = cfg(room, 'DRAWNMAP')[0];
+  const isStatic = !GENERATED_MAPS.has(mapName);
+  return {
+    mapgen: isStatic ? MAPGEN.map : num(room, 'MAPGEN', MAPGEN.regular),
+    seed: cfg(room, 'SEED')[0] ?? '',
+    templateFilter: num(room, 'TEMPLATE', 0),
+    featureSize: num(room, 'FEATURE_SIZE', 12),
+    mazeSize: num(room, 'MAZE_SIZE', 0),
+    script: cfg(room, 'SCRIPT')[0] ?? 'Normal',
+    scriptParam: String(scheme[scheme.length - 1] ?? '').replace(/^!/, ''),
+    staticMap: isStatic ? mapName : '',
+    drawnMap: drawn
+      ? await qUncompress(Uint8Array.from(atob(drawn), (c) => c.charCodeAt(0)))
+      : undefined,
   };
 }
 

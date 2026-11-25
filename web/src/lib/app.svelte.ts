@@ -2,6 +2,7 @@
 
 import { defaultAmmo, defaultScheme, MAPGEN } from './engine/config';
 import { DEFAULT_AMMO_SETS, DEFAULT_SCHEMES } from './engine/frontend-data.generated';
+import { PreviewService, type PreviewParams } from './engine/preview';
 import { NetClient, type ChatLine, type RoomSettings } from './net/client';
 import type { TeamInfo } from './protocol/messages';
 import { load, save } from './storage';
@@ -32,6 +33,9 @@ export const ASSETS = {
   engine: new URL('engine/hwengine.mjs', document.baseURI).href,
   packs: new URL('packs/', document.baseURI).href,
 };
+
+/** renders map previews with a second engine instance */
+export const previews = new PreviewService(ASSETS.engine, ASSETS.packs);
 
 function defaultServer(): string {
   const param = new URLSearchParams(location.search).get('server');
@@ -92,6 +96,19 @@ export function choiceToRoomSettings(c: GameChoice): RoomSettings {
     mazeSize: 0,
     featureSize: 12,
     staticMap: c.mapType === 'map' ? c.map : '',
+  };
+}
+
+export function previewParamsFromSettings(s: RoomSettings): PreviewParams {
+  return {
+    mapgen: s.staticMap ? MAPGEN.map : s.mapgen,
+    seed: s.seed,
+    templateFilter: s.templateFilter,
+    featureSize: s.featureSize,
+    mazeSize: s.mazeSize,
+    script: s.script,
+    scriptParam: String(s.scheme[s.scheme.length - 1] ?? ''),
+    staticMap: s.staticMap,
   };
 }
 

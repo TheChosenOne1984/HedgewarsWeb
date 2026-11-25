@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { app } from '../lib/app.svelte';
+  import { app, choiceToRoomSettings, previewParamsFromSettings } from '../lib/app.svelte';
   import GameSettings from '../components/GameSettings.svelte';
+  import MapPreview from '../components/MapPreview.svelte';
 
   let picked = $state<string[]>(app.teams.slice(0, 2).map((t) => t.name));
   let teams = $derived(app.teams.filter((t) => picked.includes(t.name)));
+  let previewParams = $derived(previewParamsFromSettings(choiceToRoomSettings(app.choice)));
 
   function start() {
     app.localTeams = teams;
@@ -31,12 +33,28 @@
 
 <section class="panel">
   <h3>Game</h3>
-  <GameSettings bind:choice={app.choice} />
+  <div class="game">
+    <MapPreview params={previewParams} />
+    <div class="options"><GameSettings bind:choice={app.choice} /></div>
+  </div>
 </section>
 
 <button class="primary start" disabled={teams.length < 2} onclick={start}>Start game</button>
 
 <style>
+  .game {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .game > :global(.preview) {
+    flex: 0 1 256px;
+  }
+  .options {
+    flex: 1 1 300px;
+    min-width: 0;
+  }
   .bar {
     display: flex;
     justify-content: space-between;

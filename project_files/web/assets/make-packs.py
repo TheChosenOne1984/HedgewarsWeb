@@ -29,6 +29,7 @@ Usage: make-packs.py <installed Data dir> <output dir>
 import hashlib
 import json
 import os
+import shutil
 import struct
 import sys
 
@@ -146,8 +147,15 @@ def main():
         manifest["packs"][name] = write_pack(data_dir, packs[name], out_dir, name)
     with open(os.path.join(out_dir, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
+    cat = catalog(data_dir)
     with open(os.path.join(out_dir, "catalog.json"), "w") as f:
-        json.dump(catalog(data_dir), f, indent=1, sort_keys=True)
+        json.dump(cat, f, indent=1, sort_keys=True)
+    # previews of the fixed maps, loaded one by one by the map selection
+    os.makedirs(os.path.join(out_dir, "previews"), exist_ok=True)
+    for m in cat["maps"]:
+        src = os.path.join(data_dir, "Maps", m, "preview.png")
+        if os.path.exists(src):
+            shutil.copyfile(src, os.path.join(out_dir, "previews", m + ".png"))
     core = manifest["packs"]["core"]
     total = sum(p["size"] for p in manifest["packs"].values())
     print("%d packs, %.1f MB total, core %.1f MB (%d files)"

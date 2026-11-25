@@ -3,6 +3,9 @@
   import { TEAM_COLORS } from '../lib/engine/frontend-data.generated';
   import Chat from '../components/Chat.svelte';
   import GameSettings from '../components/GameSettings.svelte';
+  import MapPreview from '../components/MapPreview.svelte';
+  import type { PreviewParams } from '../lib/engine/preview';
+  import { previewParamsFromRoom } from '../lib/game/session';
 
   let room = $derived((app.tick, app.client.room));
   let teams = $derived((app.tick, [...(app.client.room?.teams ?? [])]));
@@ -14,6 +17,12 @@
   let config = $derived((app.tick, app.client.room?.config ?? new Map<string, string[]>()));
   let addable = $derived(app.teams.filter((t) => !teams.some((rt) => rt.name === t.name)));
   let selected = $state('');
+  let previewParams = $state<PreviewParams | null>(null);
+  $effect(() => {
+    void config;
+    const r = app.client.room;
+    if (r) void previewParamsFromRoom(r).then((p) => (previewParams = p));
+  });
   let sentConfig = false;
 
   // as room master, publish the full room config once (GameCFGWidget::fullNetConfig)
@@ -111,22 +120,27 @@
 
     <section class="panel settings">
       <h3>Game</h3>
-      {#if isMaster}
-        <GameSettings bind:choice={app.choice} onchange={publish} />
-      {:else}
-        <dl>
-          <dt>Scheme</dt>
-          <dd>{cfg('SCHEME')}</dd>
-          <dt>Weapons</dt>
-          <dd>{cfg('AMMO')}</dd>
-          <dt>Style</dt>
-          <dd>{cfg('SCRIPT')}</dd>
-          <dt>Theme</dt>
-          <dd>{cfg('THEME')}</dd>
-          <dt>Map</dt>
-          <dd>{cfg('MAP')} (generator {cfg('MAPGEN')})</dd>
-        </dl>
-      {/if}
+      <div class="game">
+        <MapPreview params={previewParams} />
+        <div class="options">
+          {#if isMaster}
+            <GameSettings bind:choice={app.choice} onchange={publish} />
+          {:else}
+            <dl>
+              <dt>Scheme</dt>
+              <dd>{cfg('SCHEME')}</dd>
+              <dt>Weapons</dt>
+              <dd>{cfg('AMMO')}</dd>
+              <dt>Style</dt>
+              <dd>{cfg('SCRIPT')}</dd>
+              <dt>Theme</dt>
+              <dd>{cfg('THEME')}</dd>
+              <dt>Map</dt>
+              <dd>{cfg('MAP')} (generator {cfg('MAPGEN')})</dd>
+            </dl>
+          {/if}
+        </div>
+      </div>
     </section>
 
     <div class="chat"><Chat scope="room" /></div>
@@ -143,6 +157,19 @@
     display: grid;
     grid-template-columns: 1fr 260px;
     gap: 16px;
+  }
+  .game {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .game > :global(.preview) {
+    flex: 0 1 256px;
+  }
+  .options {
+    flex: 1 1 300px;
+    min-width: 0;
   }
   .settings,
   .chat {

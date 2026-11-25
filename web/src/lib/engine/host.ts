@@ -85,6 +85,8 @@ export class EngineHost {
   private manifest: PackManifest | null = null;
   private loadedPacks = new Set<string>();
   private exited = false;
+  /** raw engine output while a land preview runs */
+  private capture: Uint8Array[] | null = null;
 
   constructor(
     private engineUrl: string,
@@ -113,6 +115,22 @@ export class EngineHost {
       getEngineVar: (kind: string, name: string) => this.vars[kind]?.get(name) ?? '',
       locateFile: (path: string) => new URL(path, this.engineUrl).href,
     });
+    if (!this.canvas) {
+      // without a canvas (land previews) the engine still makes a few GL
+      // calls; give it a context that ignores them
+      const nullGl = new Proxy(
+        {},
+        {
+          get: (_t, prop) => {
+            if (prop === 'canvas') return { width: 1, height: 1 };
+            if (prop === 'drawingBufferWidth' || prop === 'drawingBufferHeight') return 1;
+            return () => 0;
+          },
+        },
+      );
+      const gl = this.module.GL;
+      gl.makeContextCurrent(gl.registerContext(nullGl, { majorVersion: 1, minorVersion: 0 }));
+    }
     for (const dir of ['/data', DATA_PREFIX, USER_PREFIX]) this.module.FS.mkdir(dir);
     this.manifest = (await (await fetch(this.packsUrl + 'manifest.json')).json()) as PackManifest;
   }
@@ -159,6 +177,34 @@ export class EngineHost {
     this.push(ipcFrame('!')); // the pong for the engine's "C" + "?" request
     const width = this.canvas?.clientWidth || 1024;
     const height = this.canvas?.clientHeight || 768;
+    return this.run(['--width', String(width & ~1), '--height', String(height & ~1), ...extraArgs]);
+  }
+
+  /**
+   * Generate a land preview (HWMap): config holds the map parameters as IPC
+   * frames ending with '!'. Returns the engine's raw answer: 256x128 alpha
+   * values, then the hedgehog limit (1 byte); empty on failure. Previews run
+   * one at a time; the engine instance can run any number of them.
+   */
+  async landPreview(config: Uint8Array): Promise<Uint8Array> {
+    this.push(config);
+    this.capture = [];
+    try {
+      await this.run(['--landpreview']);
+      const total = this.capture.reduce((n, b) => n + b.length, 0);
+      const out = new Uint8Array(total);
+      let pos = 0;
+      for (const b of this.capture) {
+        out.set(b, pos);
+        pos += b.length;
+      }
+      return out;
+    } finally {
+      this.capture = null;
+    }
+  }
+
+  private async run(extraArgs: string[]): Promise<number> {
     const args = [
       'hwengine',
       '--internal',
@@ -168,10 +214,6 @@ export class EngineHost {
       DATA_PREFIX,
       '--user-prefix',
       USER_PREFIX,
-      '--width',
-      String(width & ~1),
-      '--height',
-      String(height & ~1),
       ...extraArgs,
     ];
     const M = this.module;
@@ -194,6 +236,9 @@ export class EngineHost {
       if (e && (e as { name?: string }).name === 'ExitStatus')
         return (e as { status: number }).status;
       throw e;
+    } finally {
+      for (const p of ptrs) M._free(p);
+      M._free(argv);
     }
   }
 
@@ -207,6 +252,10 @@ export class EngineHost {
   }
 
   private fromEngine(bytes: Uint8Array) {
+    if (this.capture) {
+      this.capture.push(new Uint8Array(bytes));
+      return;
+    }
     // remember saved campaign/mission variables: "V!name value\0"
     for (const msg of ipcSplit(bytes)[0]) {
       const kind = String.fromCharCode(msg[0] ?? 0);
