@@ -58,6 +58,12 @@ RUN git clone --depth 1 --branch ${EMSDK_VERSION} https://github.com/emscripten-
     && chmod -R a+rwX ${EMSDK}
 ENV PATH=${EMSDK}:${EMSDK}/upstream/emscripten:${EMSDK}/node/22.16.0_64bit/bin:$PATH
 RUN rustup target add wasm32-unknown-emscripten
+# Fill Emscripten's library cache once: many parallel emcc processes filling
+# an empty cache deadlocked in a BuildKit build (cache lock).
+RUN embuilder build libc libc++-noexcept libc++abi-noexcept libcompiler_rt libdlmalloc \
+        libGL-getprocaddr libhtml5 libnoexit libsockets libstubs \
+        sdl2 sdl2_ttf "sdl2_image:formats=png" "sdl2_mixer:formats=ogg" > /dev/null \
+    && chmod -R a+rwX ${EMSDK}/upstream/emscripten/cache
 
 # Libraries without an Emscripten port, built once and installed to /opt/wasm.
 # PhysFS >= 3.0 is required (misc/libphysfs is 2.1).
@@ -90,11 +96,12 @@ RUN emcmake cmake -S . -B /build/web -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD
         -DRust_CARGO_TARGET=wasm32-unknown-emscripten -DNOVERSIONINFOUPDATE=1 \
     && ninja -C /build/web hwengine
 # the data set the desktop build installs (no source files), for the packs
-RUN cmake -S . -B /build/data -G Ninja -DNOSERVER=1 -DNOVIDEOREC=1 -DNOVERSIONINFOUPDATE=1 > /dev/null \
+RUN cmake -S . -B /build/data -G Ninja -DGL2=1 -DNOSERVER=1 -DNOVIDEOREC=1 -DNOVERSIONINFOUPDATE=1 > /dev/null \
     && DESTDIR=/build/stage cmake --install /build/data/share > /dev/null
 RUN cd web && npm ci --no-fund --no-audit --silent \
     && VITE_SOURCE_URL=${SOURCE_URL} npx vite build \
-    && scripts/stage-assets.sh /build/web /build/stage/usr/local/share/hedgewars/Data /srv-site
+    && scripts/stage-assets.sh /build/web /build/stage/usr/local/share/hedgewars/Data dist \
+    && cp -r dist /srv-site
 
 FROM caddy:2.8.4-alpine AS site
 COPY --from=site-build /srv-site /srv

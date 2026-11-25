@@ -50,3 +50,10 @@ The game server bans and throttles per client address. It trusts
 Hedgewars is GPL-2.0 (code) and GFDL-1.2 (data). The web client links to the
 source in its footer; set the build argument `SOURCE_URL` (Dockerfile stage
 `site-build`) to the exact revision you deploy.
+
+## Testing the stack
+
+    project_files/web/ci/deploy-smoke.sh
+
+builds the images, starts them on ports 8080/8443/46731 (`test-ports.yml`)
+and checks the site with a headless browser.
