@@ -101,6 +101,10 @@ const DE: Record<string, string> = {
   'Hedgehog {n} hat': 'Hut von Igel {n}',
   'Delete team': 'Team löschen',
   'Search…': 'Suchen…',
+  'Random team': 'Zufälliges Team',
+  'Random hats': 'Zufällige Hüte',
+  'Random names': 'Zufällige Namen',
+  'Play a sample of this voice': 'Hörprobe dieser Stimme abspielen',
   // chat
   'has left': 'ist gegangen',
   joined: 'ist da',

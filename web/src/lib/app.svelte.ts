@@ -19,6 +19,8 @@ export interface Catalog {
   forts: string[];
   voices: string[];
   styles: string[];
+  /** voice -> sample lines published in packs/previews/voices/<voice>/<line>.ogg */
+  voiceSamples?: Record<string, string[]>;
 }
 
 export interface Settings {

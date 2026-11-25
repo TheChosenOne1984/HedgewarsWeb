@@ -1,9 +1,11 @@
-// Pictures of team items (hats, graves, flags) for the team editor. They come
+// Pictures of team items (hats, graves, flags) and the name lists (random
+// names) for the team editor. They come
 // from the core asset pack, which every game needs anyway and the browser
 // keeps (content-addressed, cached as immutable), so showing them costs no
 // extra download.
 
 import { parsePack, type PackManifest } from './engine/host';
+import { lines, parseTypes, type NameData } from './namegen';
 
 export type ImageKind = 'hat' | 'grave' | 'flag';
 
@@ -22,7 +24,12 @@ export const IMAGE_FRAME: Record<ImageKind, { width: number; height: number }> =
 
 export type TeamImages = (kind: ImageKind, name: string) => string | undefined;
 
-let loading: Promise<TeamImages> | null = null;
+export interface TeamData {
+  image: TeamImages;
+  names: NameData;
+}
+
+let loading: Promise<TeamData> | null = null;
 
 /** the colour of team hats' colour layer in previews (the Qt frontend's first team colour) */
 const HAT_PREVIEW_COLOR = '#ff0204';
@@ -56,8 +63,8 @@ function hatPicture(hedgehog: ImageBitmap, hat: ImageBitmap): string {
   return canvas.toDataURL();
 }
 
-/** Object URLs of the team item pictures in the core pack (loaded once). */
-export function teamImages(packsUrl: string): Promise<TeamImages> {
+/** The team item pictures and name lists of the core pack (loaded once). */
+export function teamData(packsUrl: string): Promise<TeamData> {
   loading ??= (async () => {
     const base = packsUrl.endsWith('/') ? packsUrl : packsUrl + '/';
     const manifest = (await (await fetch(base + 'manifest.json')).json()) as PackManifest;
@@ -68,7 +75,12 @@ export function teamImages(packsUrl: string): Promise<TeamImages> {
     const urls = new Map<string, string>();
     const hats: [string, Uint8Array][] = [];
     let hedgehog: ImageBitmap | null = null;
+    const names: NameData = { types: [], files: new Map() };
+    const text = new TextDecoder();
     for (const { path, data } of parsePack(await response.arrayBuffer())) {
+      if (path === 'Names/types.ini') names.types = parseTypes(text.decode(data));
+      else if (/^Names\/[^/]+\.(txt|cfg)$/.test(path))
+        names.files.set(path.substring(6), lines(text.decode(data)));
       if (path === 'Graphics/Hedgehog/Idle.png')
         hedgehog = await createImageBitmap(new Blob([data.slice()], { type: 'image/png' }));
       if (!path.endsWith('.png') || !Object.values(FOLDERS).some((f) => path.startsWith(f)))
@@ -83,7 +95,8 @@ export function teamImages(packsUrl: string): Promise<TeamImages> {
         hedgehog ? hatPicture(hedgehog, await createImageBitmap(blob)) : URL.createObjectURL(blob),
       );
     }
-    return (kind, name) => urls.get(`${FOLDERS[kind]}${name}.png`);
+    const image: TeamImages = (kind, name) => urls.get(`${FOLDERS[kind]}${name}.png`);
+    return { image, names };
   })();
   loading.catch(() => (loading = null));
   return loading;

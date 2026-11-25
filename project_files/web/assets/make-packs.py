@@ -48,6 +48,9 @@ def locale_of(name):
     return base
 
 
+VOICE_SAMPLES = ["Illgetyou", "Incoming", "Stupid", "Coward", "Firstblood"]
+
+
 def pack_name(path):
     """Name of the pack that a data file (relative path) belongs to."""
     parts = path.split("/")
@@ -156,6 +159,29 @@ def main():
         src = os.path.join(data_dir, "Maps", m, "preview.png")
         if os.path.exists(src):
             shutil.copyfile(src, os.path.join(out_dir, "previews", m + ".png"))
+    # team editor: fort pictures and voice samples (the lines frontend-qt6
+    # PageEditTeam::testSound picks from), loaded one by one when shown
+    # (the *-preview.png pictures are not installed; take them from the sources)
+    source_forts = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
+                                "share", "hedgewars", "Data", "Forts")
+    os.makedirs(os.path.join(out_dir, "previews", "forts"), exist_ok=True)
+    for f in cat["forts"]:
+        src = os.path.join(data_dir, "Forts", f + "-preview.png")
+        if not os.path.exists(src):
+            src = os.path.join(source_forts, f + "-preview.png")
+        if os.path.exists(src):
+            shutil.copyfile(src, os.path.join(out_dir, "previews", "forts", f + ".png"))
+    samples = {}
+    for v in cat["voices"]:
+        for line in VOICE_SAMPLES:
+            src = os.path.join(data_dir, "Sounds", "voices", v, line + ".ogg")
+            if os.path.exists(src):
+                os.makedirs(os.path.join(out_dir, "previews", "voices", v), exist_ok=True)
+                shutil.copyfile(src, os.path.join(out_dir, "previews", "voices", v, line + ".ogg"))
+                samples.setdefault(v, []).append(line)
+    cat["voiceSamples"] = samples
+    with open(os.path.join(out_dir, "catalog.json"), "w") as f:
+        json.dump(cat, f, indent=1, sort_keys=True)
     core = manifest["packs"]["core"]
     total = sum(p["size"] for p in manifest["packs"].values())
     print("%d packs, %.1f MB total, core %.1f MB (%d files)"
