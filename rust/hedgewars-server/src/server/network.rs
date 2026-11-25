@@ -453,6 +453,15 @@ impl NetworkLayer {
         stream: ClientStream,
         addr: SocketAddr,
     ) -> Option<NetworkClient> {
+        // Loopback clients become local admins (no accounts without the
+        // official server). A WebSocket client's address comes from the
+        // reverse proxy; behind a proxy on the same host without
+        // --trusted-proxy every web client would be loopback, so web
+        // clients never get local admin rights.
+        #[cfg(feature = "ws-connections")]
+        let may_be_local_admin = !matches!(stream, ClientStream::Ws(_));
+        #[cfg(not(feature = "ws-connections"))]
+        let may_be_local_admin = true;
         self.next_conn_id += 1;
         let conn_id = self.next_conn_id;
         let entry = self.clients.vacant_entry();
@@ -472,7 +481,7 @@ impl NetworkLayer {
             client_id,
             &mut response,
             peer_ip,
-            peer_ip.is_loopback(),
+            may_be_local_admin && peer_ip.is_loopback(),
         );
 
         self.handle_response(response).await;
@@ -955,6 +964,12 @@ mod tests {
             tcp_expect(&mut tcp, &mut tcp_in, "LOBBY:JOINED\n").await;
             assert!(tcp_in.contains("webuser"), "lobby list: {:?}", tcp_in);
             ws_expect(&mut ws, &mut ws_in, "LOBBY:JOINED\ndesktopuser\n").await;
+
+            // both connect from loopback: the desktop client is a local admin,
+            // the web client (address from a proxy) never is
+            tcp_expect(&mut tcp, &mut tcp_in, "CLIENT_FLAGS\n+a\ndesktopuser\n").await;
+            assert!(!tcp_in.contains("+a\nwebuser"), "web client is admin: {:?}", tcp_in);
+            assert!(!ws_in.contains("+a\nwebuser"), "web client is admin: {:?}", ws_in);
 
             // the web client creates a room (text frames work too), the desktop client joins
             ws.send(Message::Text("CREATE_ROOM\nwebroom\n\n".to_string()))

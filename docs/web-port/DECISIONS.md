@@ -336,3 +336,10 @@ Format: what was decided, why, and what was rejected.
   attempts do not count) stays as upstream. The web client explains it and reconnects by itself
   every 15 s. A new server option `--reconnect-limit-exempt=IP` lifts the limit for chosen
   addresses; the test stack uses it for the test host, production does not.
+
+### D34: No local admin rights for WebSocket clients
+- Without the official server's account database, the server makes loopback clients local admins
+  (kick, ban, server messages for everyone). A WebSocket client's address comes from the reverse
+  proxy; behind a proxy on the same host without `--trusted-proxy`, every web client would be
+  loopback and thus admin. WebSocket clients therefore never become local admins; desktop clients
+  on the server host still do (test: a TCP and a WebSocket client from loopback).
