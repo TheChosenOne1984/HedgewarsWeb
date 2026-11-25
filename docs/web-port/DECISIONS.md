@@ -356,3 +356,14 @@ Format: what was decided, why, and what was rejected.
   auth cannot cover that plain TCP port.
 - `project_files/web/ci/deploy-auth.sh` checks 401 without/with wrong credentials, the cookie
   rules, the desktop port option, and the lobby behind basic auth in Chromium, Firefox and WebKit.
+
+### D36: Images in GHCR, release tags
+- `.github/workflows/images.yml` builds the `site` and `server` images with Buildx (GitHub Actions
+  cache) and pushes them to `ghcr.io/<owner>/hedgewars-{site,server}` with the workflow's
+  `GITHUB_TOKEN` (no extra secrets). The site's source link points at the exact commit.
+- Release tags are `<hedgewars version>-web.<n>`, e.g. `1.1.0-web.1`: the base version tells which
+  desktop clients can play along (network protocol), `n` counts this project's releases. Hedgewars
+  itself tags `X.Y.Z-release`; the base here is the unreleased 1.1.0-dev line.
+- Compose names the GHCR images (`HW_VERSION`, default `latest` = newest release), so a server
+  only pulls; the test stack uses local `:local` images with `pull_policy: build`, so tests never
+  run registry images by accident.

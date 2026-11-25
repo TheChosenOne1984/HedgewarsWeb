@@ -1,0 +1,58 @@
+name: Images
+
+# Production images (project_files/web/deploy) in the GitHub Container Registry:
+#   ghcr.io/<owner>/hedgewars-site, ghcr.io/<owner>/hedgewars-server
+# push to web-port   -> tags "web-port" and "sha-<commit>"
+# tag <ver>-web.<n>  -> tags "<ver>-web.<n>" and "latest" (e.g. 1.1.0-web.1)
+on:
+  push:
+    branches: [web-port]
+    tags: ['*-web.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: ${{ matrix.target }} image
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [site, server]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/hedgewars-${{ matrix.target }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: project_files/web/docker/Dockerfile
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # the web client's "Source code" link points at the exact revision (GPL)
+          build-args: |
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max

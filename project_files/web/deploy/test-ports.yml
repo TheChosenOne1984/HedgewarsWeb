@@ -1,10 +1,15 @@
 # Test override: the stack on ports 8080/8443/46731 (see project_files/web/ci/deploy-smoke.sh)
 services:
   site:
+    # tests use the images built locally, never ones from the registry
+    image: hedgewars-site:local
+    pull_policy: build
     ports: !override
       - "8080:80"
       - "8443:443"
   server:
+    image: hedgewars-server:local
+    pull_policy: build
     command: !override
       - --port=46631
       - --ws-port=46632

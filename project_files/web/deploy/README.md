@@ -10,7 +10,19 @@ lobby.
 
     cd project_files/web/deploy
     cp .env.example .env      # then edit .env
-    docker compose up -d --build
+    docker compose pull       # ready-made images from GHCR
+    docker compose up -d
+
+`.github/workflows/images.yml` builds the images and publishes them to the
+GitHub Container Registry (`ghcr.io/thechosenone1984/hedgewars-site` and
+`…/hedgewars-server`): every push to `web-port` as tag `web-port`, every
+release tag `<hedgewars version>-web.<n>` (e.g. `1.1.0-web.1`) under its name
+and as `latest`. `HW_VERSION` in `.env` picks one. To build on the host
+instead (15–30 min, ~15 GB for the toolchain): `docker compose up -d --build`.
+
+To publish a release:
+
+    git tag -a 1.1.0-web.2 -m "Hedgewars web 1.1.0-web.2" && git push origin 1.1.0-web.2
 
 Settings in `.env`:
 
