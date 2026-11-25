@@ -410,7 +410,9 @@ impl MazeLandGenerator {
 
             for current_step in 0..num_steps {
                 if !step_done[current_step] {
-                    let dir = Direction::new(random_numbers.gen_range(0..4));
+                    // sample as u64, not usize: usize ranges draw u32 on 32-bit
+                    // targets (e.g. wasm32), which would generate different mazes
+                    let dir = Direction::new(random_numbers.gen_range(0..4u64) as usize);
                     step_done[current_step] = maze.see_cell(current_step, dir, random_numbers);
                     done = false;
                 }
