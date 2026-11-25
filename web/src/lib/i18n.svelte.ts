@@ -100,6 +100,7 @@ const DE: Record<string, string> = {
   'Hedgehog {n} name': 'Name von Igel {n}',
   'Hedgehog {n} hat': 'Hut von Igel {n}',
   'Delete team': 'Team löschen',
+  'Search…': 'Suchen…',
   // chat
   'has left': 'ist gegangen',
   joined: 'ist da',
