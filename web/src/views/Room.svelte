@@ -53,6 +53,13 @@
     }
   });
 
+  /** the room's weapon set; one we do not have is kept for this session */
+  function adoptAmmo(c: Map<string, string[]>): string | undefined {
+    const [name, ammo] = c.get('AMMO') ?? [];
+    if (name && ammo) app.noteRoomAmmo({ name, ammo });
+    return name;
+  }
+
   /** the settings of a room as the room master's choices (for the settings form) */
   function choiceFromConfig(c: Map<string, string[]>, current: GameChoice): GameChoice {
     const get = (k: string) => (c.get(k) ?? [])[0];
@@ -66,7 +73,7 @@
     return {
       ...current,
       schemeName: get('SCHEME') ?? current.schemeName,
-      ammoName: get('AMMO') ?? current.ammoName,
+      ammoName: adoptAmmo(c) ?? current.ammoName,
       style: get('SCRIPT') ?? current.style,
       theme: get('THEME') ?? current.theme,
       seed: get('SEED') ?? current.seed,

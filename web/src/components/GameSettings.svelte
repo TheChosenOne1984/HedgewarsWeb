@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from '../lib/i18n.svelte';
   import { app, randomSeed, type GameChoice } from '../lib/app.svelte';
-  import { DEFAULT_AMMO_SETS, DEFAULT_SCHEMES } from '../lib/engine/frontend-data.generated';
+  import { DEFAULT_SCHEMES } from '../lib/engine/frontend-data.generated';
 
   let {
     choice = $bindable(),
@@ -14,7 +14,7 @@
   } = $props();
 
   const schemes = DEFAULT_SCHEMES.map((s) => String(s[0]));
-  const ammo = DEFAULT_AMMO_SETS.map((a) => a.name);
+  let ammo = $derived(app.allAmmoSets.map((a) => a.name));
 </script>
 
 <div class="settings">

@@ -4,6 +4,17 @@
   import Chat from '../components/Chat.svelte';
 
   let roomName = $state('');
+  /** generated maps by their room list names */
+  const GENERATED: Record<string, string> = {
+    '+rnd+': 'Random terrain',
+    '+maze+': 'Maze',
+    '+perlin+': 'Perlin',
+    '+drawn+': 'Drawn map',
+    '+forts+': 'Forts',
+    '+wfc+': 'Tiles (WFC)',
+  };
+  const mapLabel = (map: string) => (GENERATED[map] ? t(GENERATED[map]) : map);
+
   let rooms = $derived((app.tick, [...app.client.rooms]));
   let players = $derived(
     (app.tick,
@@ -43,7 +54,7 @@
             <td>{r.players}</td>
             <td>{r.teams}</td>
             <td>{r.owner}</td>
-            <td>{r.map}</td>
+            <td>{mapLabel(r.map)}</td>
             <td>{r.script}</td>
             <td
               ><button onclick={() => app.client.joinRoom(r.name)}

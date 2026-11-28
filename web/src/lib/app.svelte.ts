@@ -8,7 +8,21 @@ import type { TeamInfo } from './protocol/messages';
 import { setLocale, t, type Locale } from './i18n.svelte';
 import { load, save } from './storage';
 
-export type Screen = 'start' | 'lobby' | 'room' | 'game' | 'teams' | 'local' | 'settings';
+export type Screen =
+  | 'start'
+  | 'lobby'
+  | 'room'
+  | 'game'
+  | 'teams'
+  | 'weapons'
+  | 'local'
+  | 'settings';
+
+export interface AmmoSet {
+  name: string;
+  /** 4 x one digit per weapon: count, crate probability, delay, crate amount */
+  ammo: string;
+}
 
 export interface Catalog {
   themes: string[];
@@ -94,7 +108,7 @@ export function choiceToRoomSettings(c: GameChoice): RoomSettings {
   return {
     scheme: defaultScheme(c.schemeName),
     ammoName: c.ammoName,
-    ammo: defaultAmmo(c.ammoName),
+    ammo: app.ammoString(c.ammoName),
     script: c.style,
     theme: c.theme,
     seed: c.seed,
@@ -142,6 +156,10 @@ class AppState {
     locale: '',
     binds: {},
   });
+  /** weapon sets the user made (saved), in addition to the predefined ones */
+  ammoSets = $state<AmmoSet[]>([]);
+  /** weapon sets met in rooms (another room master's), kept for this session */
+  roomAmmoSets = $state<AmmoSet[]>([]);
   /** the screen to return to from the settings and team editor */
   previousScreen = $state<Screen>('start');
   choice = $state<GameChoice>({
@@ -188,11 +206,42 @@ class AppState {
       newTeam(`Hedgehogs ${n}`),
       { ...newTeam(`Bots ${n}`), difficulty: 3 },
     ]);
+    this.ammoSets = await load<AmmoSet[]>('ammoSets', []);
     try {
       this.catalog = (await (await fetch(ASSETS.packs + 'catalog.json')).json()) as Catalog;
     } catch {
       this.catalog = null;
     }
+  }
+
+  /** predefined, own and room weapon sets, each name once */
+  get allAmmoSets(): AmmoSet[] {
+    const seen = new Set<string>();
+    return [...DEFAULT_AMMO_SETS, ...this.ammoSets, ...this.roomAmmoSets].filter((s) => {
+      if (seen.has(s.name)) return false;
+      seen.add(s.name);
+      return true;
+    });
+  }
+
+  ammoString(name: string): string {
+    return this.allAmmoSets.find((s) => s.name === name)?.ammo ?? defaultAmmo(name);
+  }
+
+  /** remember a weapon set a room uses that we do not have */
+  noteRoomAmmo(set: AmmoSet) {
+    if (!this.allAmmoSets.some((s) => s.name === set.name))
+      this.roomAmmoSets = [...this.roomAmmoSets, set];
+  }
+
+  saveAmmoSets() {
+    void save('ammoSets', $state.snapshot(this.ammoSets));
+  }
+
+  /** leave the server and go back to the start page */
+  disconnect() {
+    this.client.disconnect();
+    this.screen = 'start';
   }
 
   saveTeams() {
@@ -204,8 +253,8 @@ class AppState {
   }
 
   /** open the settings or team editor, coming back to the current screen */
-  open(screen: 'settings' | 'teams') {
-    if (this.screen !== 'settings' && this.screen !== 'teams') this.previousScreen = this.screen;
+  open(screen: 'settings' | 'teams' | 'weapons') {
+    if (!['settings', 'teams', 'weapons'].includes(this.screen)) this.previousScreen = this.screen;
     this.screen = screen;
   }
 

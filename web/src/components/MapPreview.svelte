@@ -95,7 +95,9 @@
     display: block;
     width: 100%;
     aspect-ratio: 2 / 1;
-    border-radius: 6px;
+    border-radius: 12px;
+    border: 3px solid var(--accent);
+    box-sizing: border-box;
     background: linear-gradient(rgb(66, 115, 225), rgb(0, 0, 192));
     transition: opacity 0.15s;
   }

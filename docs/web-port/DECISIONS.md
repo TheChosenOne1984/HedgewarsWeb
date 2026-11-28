@@ -379,3 +379,19 @@ Format: what was decided, why, and what was rejected.
   devices: 2 got in). New server option `--reconnect-limit=off` / `HW_RECONNECT_LIMIT=off`, in
   compose `RECONNECT_LIMIT` (default on, as upstream); recommended off for private (basic auth)
   sites.
+
+### D38: Navigation, weapon sets, the look of the Qt frontend
+- The header is a navigation on every page: Teams, Weapons, Settings and, when connected, the nick
+  with Disconnect (back to the start page). The Disconnect button never showed before: its
+  condition read the update counter only behind `&&`, so Svelte did not track it.
+- Weapon set editor (port of `selectWeapon.cpp`): predefined sets read-only, own sets made by
+  copying, edited per field (starting ammo, crate probability, delay, ammo in crates) with a slider
+  per weapon, icons from `Ammos_base.png`, saved in the browser. Weapon names come from the engine
+  locale files through `Ammoz[].NameId` (the string ids are not the ammo types), extracted with the
+  ammo menu order by `scripts/extract-frontend-data.py`. Own sets appear in every weapon choice; a
+  room master sends the set with its digits, so other players need not have it. A set met in a
+  room is kept for the session when taking over the room.
+- The UI takes the Qt frontend's look (`frontend-qt6/res/css/qt.css`): night sky `#141250` with
+  `Background.png` (its top edge has the sky colour, so it blends in), twinkling `Star.png`, the
+  Hedgewars title, golden yellow borders and headings, round corners. Body text stays light on
+  dark panels for reading; motion respects `prefers-reduced-motion`.

@@ -158,6 +158,6 @@
   }
   .grid button.selected {
     border-color: var(--accent);
-    background: #3a3520;
+    background: rgba(255, 204, 0, 0.22);
   }
 </style>

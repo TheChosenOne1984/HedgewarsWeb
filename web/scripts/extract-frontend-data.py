@@ -84,6 +84,38 @@ def team_colors():
     return [int(x, 16) & 0xFFFFFF for x in re.findall(r"0x([0-9a-fA-F]{8})", m.group(1))]
 
 
+def ammo_menu():
+    """Ammo types (1-based) in the order of the in-game ammo menu (HW_AMMOMENU_ARRAY)."""
+    src = (QT / "hwconsts.h").read_text()
+    m = re.search(r"#define\s+HW_AMMOMENU_ARRAY\s*\\?\s*\{([^}]*)\}", src, re.S)
+    return [int(x) for x in re.findall(r"\d+", m.group(1).replace("\\", " "))]
+
+
+def ammo_name_ids():
+    """For each ammo type (TAmmoType order, 1-based), its string id number in the
+    locale files: Ammoz[type].NameId (hedgewars/uVariables.pas), numbered by the
+    TAmmoStrId enumeration (hedgewars/uTypes.pas)."""
+    eng = ROOT / "hedgewars"
+    types = (eng / "uTypes.pas").read_text()
+    sids = re.search(r"TAmmoStrId\s*=\s*\((.*?)\);", types, re.S).group(1)
+    sid_index = {name.strip(): i for i, name in enumerate(re.sub(r"//[^\n]*", "", sids).split(","))}
+    variables = (eng / "uVariables.pas").read_text()
+    ammoz = variables[variables.index("Ammoz:"):]
+    name_ids = re.findall(r"NameId:\s*(sid\w+)", ammoz)
+    # entry 0 is amNothing (sidNothing); the ammo types follow in TAmmoType order
+    return [sid_index[n] for n in name_ids[1:]]
+
+
+def weapon_names(lang):
+    """Weapon names by ammo type - 1, from the engine's locale file (00:NN=name)."""
+    strings = {}
+    for line in (ROOT / "share/hedgewars/Data/Locale" / (lang + ".txt")).read_text().splitlines():
+        m = re.match(r"00:(\d+)=(.*)", line)
+        if m:
+            strings[int(m.group(1))] = m.group(2).strip()
+    return [strings.get(i, "") for i in ammo_name_ids()]
+
+
 def main():
     fields, scheme_list = schemes()
     out = [
@@ -100,6 +132,15 @@ def main():
         "/** predefined weapon sets (frontend-qt6/hwconsts.cpp, weapons.h) */",
         "export const DEFAULT_AMMO_SETS: { name: string; ammo: string }[] = %s;"
         % json.dumps(ammo_sets(), indent=2),
+        "",
+        "/** ammo types (1-based) as the in-game ammo menu orders them, in columns of"
+        " AMMO_MENU_ROWS (frontend-qt6/hwconsts.h HW_AMMOMENU_ARRAY) */",
+        "export const AMMO_MENU: number[] = %s;" % json.dumps(ammo_menu()),
+        "export const AMMO_MENU_ROWS = 6;",
+        "",
+        "/** weapon names by ammo type - 1 (Data/Locale/<lang>.txt, 00:NN) */",
+        "export const WEAPON_NAMES: Record<'en' | 'de', string[]> = %s;"
+        % json.dumps({"en": weapon_names("en"), "de": weapon_names("de")}),
         "",
         "/** team colours by colour index (frontend-qt6/hwconsts.h HW_TEAMCOLOR_ARRAY) */",
         "export const TEAM_COLORS: number[] = %s;" % json.dumps(team_colors()),

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BIND_ACTIONS } from '../src/lib/binds';
+import { AMMO_FIELDS, ammoNameProblem } from '../src/lib/weapons';
 import { setLocale, t, TRANSLATIONS } from '../src/lib/i18n.svelte';
 
 function sources(dir: string): string[] {
@@ -18,6 +19,16 @@ function usedTexts(): Set<string> {
     for (const m of readFileSync(file, 'utf8').matchAll(/\bt[r]?\(\s*'((?:[^'\\]|\\.)*)'/g))
       used.add(m[1]!.replace(/\\'/g, "'"));
   }
+  for (const f of AMMO_FIELDS) {
+    used.add(f.label);
+    used.add(f.hint);
+  }
+  for (const problem of [
+    ammoNameProblem('', []),
+    ammoNameProblem('x'.repeat(41), []),
+    ammoNameProblem('a', ['A']),
+  ])
+    used.add(problem!);
   for (const b of BIND_ACTIONS) {
     used.add(b.label);
     if (b.category) used.add(b.category);

@@ -9,6 +9,8 @@ export default defineConfig({
     rollupOptions: { external: [/\/engine\/hwengine\.mjs$/] },
   },
   server: {
+    // the UI uses pictures of the Qt frontend and the game data (../frontend-qt6, ../share)
+    fs: { allow: ['..'] },
     // dev: proxy the game server's WebSocket listener
     proxy: { '/ws': { target: 'ws://localhost:46632', ws: true } },
   },
